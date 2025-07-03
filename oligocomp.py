@@ -197,9 +197,9 @@ class OligoComp:
             )
             self.pca_positions = _hf.calculate_pca_positions(self.node_positions)
 
-    def _get_node_positions(self, pca=True):
+    def _get_node_positions(self, objects, pca=True):
         node_pos = {}
-        for node in self.graph.nodes:
+        for node in objects["graph"].nodes:
             n = _hf.get_node_name(node)
             if (
                 n not in self.node_positions.keys()
@@ -321,7 +321,7 @@ class OligoComp:
                 ylabel=ylabel,
                 plot_parameters=self.plot_parameters,
             )
-            node_pca_pos = self._get_node_positions()
+            node_pca_pos = self._get_node_positions(self.graph_coord_objects[segment])
             node_pca_pos = _hf.check_projection_sign(node_pca_pos, self.pca_positions)
 
             for e in graph.edges:
@@ -494,6 +494,8 @@ class OligoComp:
         label_edges=True,
         xlabel="PCA projected membrane plane",
         ylabel="Membrane normal (Å)",
+        conservation_threshold=0.9,
+        occupancy=None
     ):
         self.logger.info(
             "Plotting conserved "
@@ -501,10 +503,9 @@ class OligoComp:
             + " graph"
             + str(" with labels" if label_nodes else "")
         )
-        self.pca_positions = _hf.calculate_pca_positions(
-            self.reference_coordinates, self.plot_parameters
-        )
-        # TODO set back lables
+        self.get_conserved_graph(conservation_threshold, occupancy)
+        self.pca_positions = self._get_node_positions(self.graph_coord_objects[self.segments[0]])
+
         plot_name = "H-bond" if self.graph_type == "hbond" else "water wire"
         fig, ax = _hf.create_plot(
             title=f"Conserved {plot_name} graph\nSelection: {self.selection[1:-16]}",
@@ -558,27 +559,6 @@ class OligoComp:
                     zorder=5,
                 )
 
-        if self.graph_type == "hbond":
-            for r in self.reference_coordinates:
-                if r.split("-")[1].startswith("w"):
-                    ax.scatter(
-                        self.pca_positions[r][0],
-                        self.pca_positions[r][1],
-                        color=self.plot_parameters["water_node_color"],
-                        s=self.plot_parameters["node_size"] * 0.7,
-                        zorder=5,
-                    )
-                    if label_nodes:
-                        ax.annotate(
-                            "W" + r.split("-")[-1],
-                            (
-                                self.pca_positions[r][0] + 0.2,
-                                self.pca_positions[r][1] - 0.25,
-                            ),
-                            fontsize=self.plot_parameters["node_label_size"],
-                            zorder=6,
-                        )
-
         if label_nodes:
             for node in self.conserved_nodes:
                 chain_id, res_name, res_id = _hf.get_node_name_pats(node)
@@ -629,94 +609,59 @@ class OligoComp:
             and self.include_backbone_sidechain
             else ""
         )
-        is_water = (
-            "_no_water"
-            if hasattr(self, "include_waters") and not self.include_waters
+        plot_folder = _hf.create_directory(
+            Path(self.workfolder, f'{self.max_water}_water_wires')
+        )
+        waters = (
+            "_max_" + str(self.max_water) + "_water_bridges"
+            if self.max_water > 0
             else ""
         )
-        if self.graph_type == "hbond":
-            plot_folder = _hf.create_directory(self.workfolder + "/H-bond_graphs/")
-            for form in self.plot_parameters["formats"]:
-                plt.savefig(
-                    f"{plot_folder}conserved_H-bond_graph{is_backbone}{is_water}{is_label}.{form}",
-                    format=form,
-                    dpi=self.plot_parameters["plot_resolution"],
-                )
-            if is_label:
-                _hf.write_text_file(
-                    plot_folder
-                    + "conserved_H-bond_graph"
-                    + is_backbone
-                    + is_water
-                    + "_info.txt",
-                    [
-                        "Conserved H-bond graph of "
-                        + str(len(self.graph_coord_objects.keys()))
-                        + " PDB structures",
-                        "\nSelection string: " + str(self.selection[0:-15]),
-                        "\n",
-                        "\nNumber of conserved nodes : "
-                        + str(len(self.conserved_nodes)),
-                        "\nNumber of conserved edges : "
-                        + str(len(self.conserved_edges)),
-                        "\n",
-                        "\nList of conserved nodes: " + str(self.conserved_nodes),
-                        "\n",
-                        "\nList of conserved edges: " + str(self.conserved_edges),
-                    ],
-                )
-        elif self.graph_type == "water_wire":
-            plot_folder = _hf.create_directory(
-                self.workfolder + "/" + str(self.max_water) + "_water_wires/"
+        occ = "_min_occupancy_" + str(self.occupancy) if self.occupancy else ""
+        for form in self.plot_parameters["formats"]:
+            plt.savefig(
+                Path(plot_folder, f'conserved{waters}{occ}_graph{is_backbone}{is_label}.{form}'),
+                format=form,
+                dpi=self.plot_parameters["plot_resolution"],
             )
-            waters = (
-                "_max_" + str(self.max_water) + "_water_bridges"
-                if self.max_water > 0
-                else ""
+        if is_label:
+            _hf.write_text_file(
+                Path(plot_folder, f'conserved{waters}{occ}_graph_inof.txt'),
+                [
+                    "Conserved water wire graph of "
+                    + str(len(self.graph_coord_objects.keys()))
+                    + str(
+                        " PDB structures" if not self.occupancy else " simulations"
+                    ),
+                    "\nSelection string: " + str(self.selection[0:-15]),
+                    "\nNumber of maximum water molecules allowed in the bridge: "
+                    + str(self.max_water),
+                    (
+                        "\nMinimum H-bond occupancy: " + str(self.occupancy)
+                        if self.occupancy
+                        else ""
+                    ),
+                    "\n",
+                    "\nNumber of conserved nodes : "
+                    + str(len(self.conserved_nodes)),
+                    "\nNumber of conserved edges : "
+                    + str(len(self.conserved_edges)),
+                    "\n",
+                    "\nList of conserved nodes: " + str(self.conserved_nodes),
+                    "\n",
+                    "\nList of conserved edges: " + str(self.conserved_edges),
+                ],
             )
-            occ = "_min_occupancy_" + str(self.occupancy) if self.occupancy else ""
-            for form in self.plot_parameters["formats"]:
-                plt.savefig(
-                    f"{plot_folder}conserved{waters}{occ}_graph{is_backbone}{is_label}.{form}",
-                    format=form,
-                    dpi=self.plot_parameters["plot_resolution"],
-                )
-            if is_label:
-                _hf.write_text_file(
-                    plot_folder + "conserved" + waters + occ + "_graph_inof.txt",
-                    [
-                        "Conserved water wire graph of "
-                        + str(len(self.graph_coord_objects.keys()))
-                        + str(
-                            " PDB structures" if not self.occupancy else " simulations"
-                        ),
-                        "\nSelection string: " + str(self.selection[0:-15]),
-                        "\nNumber of maximum water molecules allowed in the bridge: "
-                        + str(self.max_water),
-                        (
-                            "\nMinimum H-bond occupancy: " + str(self.occupancy)
-                            if self.occupancy
-                            else ""
-                        ),
-                        "\n",
-                        "\nNumber of conserved nodes : "
-                        + str(len(self.conserved_nodes)),
-                        "\nNumber of conserved edges : "
-                        + str(len(self.conserved_edges)),
-                        "\n",
-                        "\nList of conserved nodes: " + str(self.conserved_nodes),
-                        "\n",
-                        "\nList of conserved edges: " + str(self.conserved_edges),
-                    ],
-                )
         plt.close()
 
-    def plot_difference(
+    def plot_differnece_graphs(
         self,
         label_nodes=True,
         label_edges=True,
         xlabel="PCA projected membrane plane",
         ylabel="Membrane normal (Å)",
+        conservation_threshold=0.9,
+        occupancy=None
     ):
         self.logger.info(
             "Plotting difference "
@@ -724,22 +669,21 @@ class OligoComp:
             + " graphs"
             + str(" with labels" if label_nodes else "")
         )
-        for name, objects in self.graph_coord_objects.items():
+        for segment, objects in self.graph_coord_objects.items():
             if "graph" in objects.keys():
                 if self.occupancy:
-                    # wba = copy.deepcopy(objects["wba"])
                     wba = objects["wba"]
-                    wba.filter_occupancy(self.occupancy)
+                    wba.filter_occupancy(occupancy)
                     graph = wba.filtered_graph
                 else:
                     graph = objects["graph"]
 
                 self.logger.debug(
-                    "Calculating " + self.graph_type + " difference graph for: " + name
+                    "Calculating " + self.graph_type + " difference graph for: " + segment
                 )
                 plot_name = "H-bond" if self.graph_type == "hbond" else "water wire"
                 fig, ax = _hf.create_plot(
-                    title=f"Difference {plot_name} graph of structure {name}\nSelection: {self.selection[1:-16]}",
+                    title=f"Difference {plot_name} graph of segment {segment}\nSelection: {self.selection[1:-16]}",
                     xlabel=xlabel,
                     ylabel=ylabel,
                     plot_parameters=self.plot_parameters,
@@ -873,47 +817,26 @@ class OligoComp:
                     and self.include_backbone_sidechain
                     else ""
                 )
-                is_water = (
-                    "_no_water"
-                    if hasattr(self, "include_waters") and not self.include_waters
+
+                plot_folder = _hf.create_directory(
+                    Path(self.workfolder, f"{self.max_water}_water_wires", segment)
+                )
+                waters = (
+                    "_max_" + str(self.max_water) + "_water_bridges"
+                    if self.max_water > 0
                     else ""
                 )
-
-                if self.graph_type == "hbond":
-                    plot_folder = _hf.create_directory(
-                        self.workfolder + "/H-bond_graphs/" + name + "/"
+                occ = (
+                    "_min_occupancy_" + str(self.occupancy)
+                    if self.occupancy
+                    else ""
+                )
+                for form in self.plot_parameters["formats"]:
+                    plt.savefig(
+                        Path(plot_folder, f"{segment}{waters}{occ}_difference_graph{is_backbone}{is_label}.{form}"),
+                        format=form,
+                        dpi=self.plot_parameters["plot_resolution"],
                     )
-                    for form in self.plot_parameters["formats"]:
-                        plt.savefig(
-                            f"{plot_folder}{name}_H-bond_difference_graph{is_backbone}{is_water}{is_label}.{form}",
-                            format=form,
-                            dpi=self.plot_parameters["plot_resolution"],
-                        )
-                elif self.graph_type == "water_wire":
-                    plot_folder = _hf.create_directory(
-                        self.workfolder
-                        + "/"
-                        + str(self.max_water)
-                        + "_water_wires/"
-                        + name
-                        + "/"
-                    )
-                    waters = (
-                        "_max_" + str(self.max_water) + "_water_bridges"
-                        if self.max_water > 0
-                        else ""
-                    )
-                    occ = (
-                        "_min_occupancy_" + str(self.occupancy)
-                        if self.occupancy
-                        else ""
-                    )
-                    for form in self.plot_parameters["formats"]:
-                        plt.savefig(
-                            f"{plot_folder}{name}{waters}{occ}_difference_graph{is_backbone}{is_label}.{form}",
-                            format=form,
-                            dpi=self.plot_parameters["plot_resolution"],
-                        )
                 plt.close()
 
 
@@ -952,6 +875,12 @@ def main():
         type=float,
         default=0.1,
         help="Minimum hydrogen bond occupancy required to include an edge in the graph (default: 0.1, which means 10% occupancy).",
+    )
+    parser.add_argument(
+        "--conservation_threshold",
+        type=float,
+        default=0.9,
+        help="TODO",
     )
     parser.add_argument(
         "--distance",
@@ -1036,6 +965,7 @@ def main():
         help="Include interactions between backbone and sidechain atoms in the analysis.",
     )
 
+
     args = parser.parse_args()
 
     base = os.path.basename(args.psf)
@@ -1088,8 +1018,13 @@ def main():
         occupancy=float(args.occupancy),
     )
 
-    # oligo_comp.calculate_conserved_graph()
-    # oligo_comp.calculate_differnece_graphs()
+    oligo_comp.plot_conserved_graph(
+        conservation_threshold=float(args.conservation_threshold),
+        occupancy=float(args.occupancy)
+    )
+    oligo_comp.plot_differnece_graphs(
+        conservation_threshold=float(args.conservation_threshold),
+        occupancy=float(args.occupancy))
 
 
 

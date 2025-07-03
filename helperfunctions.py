@@ -212,6 +212,26 @@ def get_edge_params(wba, edges):
     return waters, occ_per_wire, keys
 
 
+def is_conserved_edge(other_graph_edges, e0, e1, with_group=False):
+    conserved_edge = (
+        len(np.where((other_graph_edges == [e0, e1]).all(axis=1))[0]) != 0
+        or len(np.where((other_graph_edges == [e1, e0]).all(axis=1))[0]) != 0
+    )
+    conserved_edge_with_water = False
+    for edge in other_graph_edges:
+        if (
+            e0 in edge
+            and e1.split("-")[1] in water_types
+            and (edge[0].startswith("X-w") or edge[1].startswith("X-w"))
+        ) or (
+            e1 in edge
+            and e0.split("-")[1] in water_types
+            and (edge[0].startswith("X-w") or edge[1].startswith("X-w"))
+        ):
+            conserved_edge_with_water = True
+    return conserved_edge or conserved_edge_with_water
+
+
 def calculate_pca_positions(coordinates):
     pca_positions = {}
     XY = [i[0:2] for i in coordinates.values()]
