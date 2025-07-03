@@ -207,7 +207,7 @@ class OligoComp:
             ):
                 chain_id, res_name, res_id = _hf.get_node_name_pats(n)
                 coords = (
-                    self.graph_coord_object["selected_atoms"]
+                    self.graph_coord_objects[segment]["selected_atoms"]
                     .select_atoms("resid " + res_id)
                     .positions[0]
                 )
@@ -304,256 +304,189 @@ class OligoComp:
         ylabel="Membrane normal (Å)",
         occupancy=None,
     ):
+        for segment in self.segments:
 
-        wba = self.graph_coord_object["wba"]
-        if occupancy:
-            wba.filter_occupancy(occupancy)
-            graph = wba.filtered_graph
-        else:
-            graph = self.graph_coord_object["graph"]
+            wba = self.graph_coord_objects[segment]["wba"]
+            if occupancy:
+                wba.filter_occupancy(occupancy)
+                graph = wba.filtered_graph
+            else:
+                graph = self.graph_coord_objects[segment]["graph"]
 
-        self.logger.debug(f"Creating water wire graph for {self.sim_name}")
-        fig, ax = _hf.create_plot(
-            title=f"""Water wire graph of structure {self.sim_name}
-            Selection:{self.selection[1:-16]}""",
-            xlabel=xlabel,
-            ylabel=ylabel,
-            plot_parameters=self.plot_parameters,
-        )
-        node_pca_pos = self._get_node_positions()
-        node_pca_pos = _hf.check_projection_sign(node_pca_pos, self.pca_positions)
-
-        for e in graph.edges:
-            e0 = _hf.get_node_name(e[0])
-            e1 = _hf.get_node_name(e[1])
-            if e0 in node_pca_pos.keys() and e1 in node_pca_pos.keys():
-                edge_line = [node_pca_pos[e0], node_pca_pos[e1]]
-                x = [edge_line[0][0], edge_line[1][0]]
-                y = [edge_line[0][1], edge_line[1][1]]
-
-                ax.plot(
-                    x,
-                    y,
-                    color=self.plot_parameters["graph_color"],
-                    marker="o",
-                    linewidth=self.plot_parameters["edge_width"],
-                    markersize=self.plot_parameters["node_size"] * 0.01,
-                    markerfacecolor=self.plot_parameters["graph_color"],
-                    markeredgecolor=self.plot_parameters["graph_color"],
-                )
-
-                if label_edges:
-                    waters, occ_per_wire, _ = _hf.get_edge_params(wba, graph.edges)
-                    ax.annotate(
-                        np.round(waters[list(graph.edges).index(e)], 1),
-                        (x[0] + (x[1] - x[0]) / 2, y[0] + (y[1] - y[0]) / 2),
-                        color="indianred",
-                        fontsize=self.plot_parameters["edge_label_size"],
-                        weight="bold",
-                    )
-                    if occupancy:
-                        ax.annotate(
-                            int(occ_per_wire[list(graph.edges).index(e)] * 100),
-                            (
-                                x[0] + (x[1] - x[0]) / 2,
-                                y[0] + (y[1] - 1.0 - y[0]) / 2,
-                            ),
-                            color="green",
-                            fontsize=self.plot_parameters["edge_label_size"],
-                        )
-
-        color_info = {}
-        lab = " with labels" if label_nodes else ""
-        if color_propka and color_data:
-            self.logger.warning(
-                f"Can not color plot by propka and external data values at the same time. Please select just one coloring option!"
+            self.logger.debug(f"Creating water wire graph for {segment}")
+            fig, ax = _hf.create_plot(
+                title=f"""Water wire graph of structure {segment}
+                Selection:{self.selection[1:-16]}""",
+                xlabel=xlabel,
+                ylabel=ylabel,
+                plot_parameters=self.plot_parameters,
             )
-        else:
-            struct_object = self.graph_coord_object["selected_atoms"]
-            selected_nodes = struct_object.select_atoms(str(node_color_selection))
-            if color_propka:
-                propka_file = Path(self.target_folder, f"{self.sim_name}.propka")
-                if propka_file.exists():
-                    color_info = _hf.read_propka_file(propka_file, selected_nodes)
-                else:
-                    self.logger.warning(
-                        f"{self.sim_name}.propka not found. To color residues by pKa values, place the propka file in the PDB folder, next to the PDB file."
-                    )
-                if len(color_info):
-                    value_colors, cmap, norm = _hf.get_color_map(
-                        color_info, color_map=node_color_map
-                    )
-                    self.logger.info(f"Color {self.sim_name} by pKa values{lab}.")
-                    color_bar_label = "pKa value"
-                else:
-                    self.logger.info(
-                        f"{self.sim_name}.propka does not contain the selected residues. Please update the Residues to color!"
+            node_pca_pos = self._get_node_positions()
+            node_pca_pos = _hf.check_projection_sign(node_pca_pos, self.pca_positions)
+
+            for e in graph.edges:
+                e0 = _hf.get_node_name(e[0])
+                e1 = _hf.get_node_name(e[1])
+                if e0 in node_pca_pos.keys() and e1 in node_pca_pos.keys():
+                    edge_line = [node_pca_pos[e0], node_pca_pos[e1]]
+                    x = [edge_line[0][0], edge_line[1][0]]
+                    y = [edge_line[0][1], edge_line[1][1]]
+
+                    ax.plot(
+                        x,
+                        y,
+                        color=self.plot_parameters["graph_color"],
+                        marker="o",
+                        linewidth=self.plot_parameters["edge_width"],
+                        markersize=self.plot_parameters["node_size"] * 0.01,
+                        markerfacecolor=self.plot_parameters["graph_color"],
+                        markeredgecolor=self.plot_parameters["graph_color"],
                     )
 
-            elif color_data:
-                color_info = _hf.read_color_data_file(
-                    self.sim_name, self.target_folder, selected_nodes
-                )
-                if color_info is None:
-                    self.logger.error(
-                        f"No {self.sim_name}_data.txt file was found in {self.target_folder}."
-                    )
-                elif len(color_info):
-                    value_colors, cmap, norm = _hf.get_color_map(
-                        color_info, color_map=node_color_map
-                    )
-                    color_bar_label = "Amino acid data value"
-                    self.logger.info(
-                        f"Color {self.sim_name} by values from external data file{lab}."
-                    )
-                else:
-                    self.logger.error(
-                        f"The content of {self.sim_name}_data.txt is invalid or no residues found in the file matching the selection for node coloring"
-                    )
-
-        for n, values in node_pca_pos.items():
-            if n in graph.nodes:
-                if n.split("-")[1] in _hf.water_types:
-                    ax.scatter(
-                        values[0],
-                        values[1],
-                        color=self.plot_parameters["water_node_color"],
-                        s=self.plot_parameters["node_size"] * 0.7,
-                        zorder=5,
-                    )
-                elif n.split("-")[1] in _hf.amino_d.keys():
-
-                    color = (
-                        value_colors[n]
-                        if n in color_info.keys()
-                        else self.plot_parameters["graph_color"]
-                    )
-
-                    ax.scatter(
-                        values[0],
-                        values[1],
-                        color=color,
-                        s=self.plot_parameters["node_size"],
-                        zorder=5,
-                        edgecolors=self.plot_parameters["graph_color"],
-                    )
-                else:
-                    color = (
-                        value_colors[n]
-                        if n in color_info.keys()
-                        else self.plot_parameters["non_prot_color"]
-                    )
-                    ax.scatter(
-                        values[0],
-                        values[1],
-                        color=color,
-                        s=self.plot_parameters["node_size"],
-                        zorder=5,
-                        edgecolors=self.plot_parameters["graph_color"],
-                    )
-
-        if label_nodes:
-            for n in graph.nodes:
-                n = _hf.get_node_name(n)
-                if n in node_pca_pos.keys():
-                    values = node_pca_pos[n]
-                    chain_id, res_name, res_id = _hf.get_node_name_pats(n)
-                    if res_name in _hf.water_types:
-                        pass  # temporary turn off water labels
-                        # ax.annotate(
-                        #     f"W{res_id}",
-                        #     (values[0] + 0.2, values[1] - 0.25),
-                        #     fontsize=self.plot_parameters["node_label_size"],
-                        # )
-                    elif res_name in _hf.amino_d.keys():
-                        res_label = (
-                            f"{chain_id}-{_hf.amino_d[res_name]}{res_id}"
-                            if self.plot_parameters["show_chain_label"]
-                            else f"{_hf.amino_d[res_name]}{res_id}"
-                        )
-
+                    if label_edges:
+                        waters, occ_per_wire, _ = _hf.get_edge_params(wba, graph.edges)
                         ax.annotate(
-                            res_label,
-                            (values[0] + 0.2, values[1] - 0.26),
-                            fontsize=self.plot_parameters["node_label_size"],
+                            np.round(waters[list(graph.edges).index(e)], 1),
+                            (x[0] + (x[1] - x[0]) / 2, y[0] + (y[1] - y[0]) / 2),
+                            color="indianred",
+                            fontsize=self.plot_parameters["edge_label_size"],
+                            weight="bold",
+                        )
+                        if occupancy:
+                            ax.annotate(
+                                int(occ_per_wire[list(graph.edges).index(e)] * 100),
+                                (
+                                    x[0] + (x[1] - x[0]) / 2,
+                                    y[0] + (y[1] - 1.0 - y[0]) / 2,
+                                ),
+                                color="green",
+                                fontsize=self.plot_parameters["edge_label_size"],
+                            )
+
+            for n, values in node_pca_pos.items():
+                if n in graph.nodes:
+                    if n.split("-")[1] in _hf.water_types:
+                        ax.scatter(
+                            values[0],
+                            values[1],
+                            color=self.plot_parameters["water_node_color"],
+                            s=self.plot_parameters["node_size"] * 0.7,
+                            zorder=5,
+                        )
+                    elif n.split("-")[1] in _hf.amino_d.keys():
+
+                        ax.scatter(
+                            values[0],
+                            values[1],
+                            color=self.plot_parameters["graph_color"],
+                            s=self.plot_parameters["node_size"],
+                            zorder=5,
+                            edgecolors=self.plot_parameters["graph_color"],
                         )
                     else:
-                        res_label = (
-                            f"{chain_id}-{res_name}{res_id}"
-                            if self.plot_parameters["show_chain_label"]
-                            else f"{res_name}{res_id}"
-                        )
-                        ax.annotate(
-                            res_label,
-                            (values[0] + 0.2, values[1] - 0.25),
-                            fontsize=self.plot_parameters["node_label_size"],
+                        ax.scatter(
+                            values[0],
+                            values[1],
                             color=self.plot_parameters["non_prot_color"],
+                            s=self.plot_parameters["node_size"],
+                            zorder=5,
+                            edgecolors=self.plot_parameters["graph_color"],
                         )
 
-        if color_info:
-            cbar = fig.colorbar(mpl.cm.ScalarMappable(norm=norm, cmap=cmap), ax=ax)
-            cbar.ax.tick_params(labelsize=self.plot_parameters["plot_tick_fontsize"])
-            cbar.set_label(
-                label=color_bar_label,
-                size=self.plot_parameters["plot_label_fontsize"],
+            if label_nodes:
+                for n in graph.nodes:
+                    n = _hf.get_node_name(n)
+                    if n in node_pca_pos.keys():
+                        values = node_pca_pos[n]
+                        chain_id, res_name, res_id = _hf.get_node_name_pats(n)
+                        if res_name in _hf.water_types:
+                            pass  # temporary turn off water labels
+                            # ax.annotate(
+                            #     f"W{res_id}",
+                            #     (values[0] + 0.2, values[1] - 0.25),
+                            #     fontsize=self.plot_parameters["node_label_size"],
+                            # )
+                        elif res_name in _hf.amino_d.keys():
+                            res_label = (
+                                f"{chain_id}-{_hf.amino_d[res_name]}{res_id}"
+                                if self.plot_parameters["show_chain_label"]
+                                else f"{_hf.amino_d[res_name]}{res_id}"
+                            )
+
+                            ax.annotate(
+                                res_label,
+                                (values[0] + 0.2, values[1] - 0.26),
+                                fontsize=self.plot_parameters["node_label_size"],
+                            )
+                        else:
+                            res_label = (
+                                f"{chain_id}-{res_name}{res_id}"
+                                if self.plot_parameters["show_chain_label"]
+                                else f"{res_name}{res_id}"
+                            )
+                            ax.annotate(
+                                res_label,
+                                (values[0] + 0.2, values[1] - 0.25),
+                                fontsize=self.plot_parameters["node_label_size"],
+                                color=self.plot_parameters["non_prot_color"],
+                            )
+
+            plt.tight_layout()
+            is_label = "_labeled" if label_nodes else ""
+            is_backbone = (
+                "_backbone"
+                if hasattr(self, "include_backbone_sidechain")
+                and self.include_backbone_sidechain
+                else ""
             )
 
-        plt.tight_layout()
-        is_label = "_labeled" if label_nodes else ""
-        is_backbone = (
-            "_backbone"
-            if hasattr(self, "include_backbone_sidechain")
-            and self.include_backbone_sidechain
-            else ""
-        )
-
-        plot_folder = _hf.create_directory(
-            Path(self.workfolder, f"{self.max_water}_water_wires", self.sim_name)
-        )
-
-        waters = f"_max_{self.max_water}_water_bridges" if self.max_water > 0 else ""
-        occ = f"_min_occupancy_{occupancy}" if occupancy else ""
-        for form in self.plot_parameters["formats"]:
-            plt.savefig(
-                Path(
-                    plot_folder,
-                    f"{self.sim_name}{waters}{occ}_graph{is_backbone}{is_label}.{form}",
-                ),
-                format=form,
-                dpi=self.plot_parameters["plot_resolution"],
+            plot_folder = _hf.create_directory(
+                Path(self.workfolder, f"{self.max_water}_water_wires", segment)
             )
-        if is_label:
-            _hf.write_text_file(
-                Path(
-                    plot_folder,
-                    f"{self.sim_name}{waters}{occ}_water_wire_graph_info.txt",
-                ),
-                [
-                    "Water wire graph of " + self.sim_name,
-                    "\nSelection string: " + str(self.selection[0:-15]),
-                    "\nNumber of maximum water molecules allowed in the bridge: "
-                    + str(self.max_water),
-                    (
-                        "\nMinimum H-bond occupancy: " + str(occupancy)
-                        if occupancy
-                        else ""
+
+            waters = f"_max_{self.max_water}_water_bridges" if self.max_water > 0 else ""
+            occ = f"_min_occupancy_{occupancy}" if occupancy else ""
+            for form in self.plot_parameters["formats"]:
+                plt.savefig(
+                    Path(
+                        plot_folder,
+                        f"{segment}{waters}{occ}_graph{is_backbone}{is_label}.{form}",
                     ),
-                    "\n",
-                    "\nNumber of nodes in "
-                    + self.sim_name
-                    + ": "
-                    + str(len(graph.nodes)),
-                    "\nNumber of edges in "
-                    + self.sim_name
-                    + ": "
-                    + str(len(graph.edges)),
-                    "\n",
-                    "\nList of nodes: " + str(graph.nodes),
-                    "\n",
-                    "\nList of edges: " + str(graph.edges),
-                ],
-            )
-        plt.close()
+                    format=form,
+                    dpi=self.plot_parameters["plot_resolution"],
+                )
+            if is_label:
+                _hf.write_text_file(
+                    Path(
+                        plot_folder,
+                        f"{segment}{waters}{occ}_water_wire_graph_info.txt",
+                    ),
+                    [
+                        "Water wire graph of " + segment,
+                        "\nSelection string: " + str(self.selection[0:-15]),
+                        "\nNumber of maximum water molecules allowed in the bridge: "
+                        + str(self.max_water),
+                        (
+                            "\nMinimum H-bond occupancy: " + str(occupancy)
+                            if occupancy
+                            else ""
+                        ),
+                        "\n",
+                        "\nNumber of nodes in "
+                        + segment
+                        + ": "
+                        + str(len(graph.nodes)),
+                        "\nNumber of edges in "
+                        + segment
+                        + ": "
+                        + str(len(graph.edges)),
+                        "\n",
+                        "\nList of nodes: " + str(graph.nodes),
+                        "\n",
+                        "\nList of edges: " + str(graph.edges),
+                    ],
+                )
+            plt.close()
 
     def plot_conserved_graph(
         self,
@@ -1148,13 +1081,12 @@ def main():
         stop=args.stop,
         include_backbone_sidechain=args.include_backbone,
     )
-    # # will be part of calcialte_grpahs
-    # dnet_graphs.plot_graphs(
-    #     label_nodes=True,
-    #     xlabel="PCA projected membrane plane (Å)",
-    #     ylabel="Membrane normal (Å)",
-    #     occupancy=float(args.occupancy),
-    # )
+    oligo_comp.plot_graphs(
+        label_nodes=True,
+        xlabel="PCA projected membrane plane (Å)",
+        ylabel="Membrane normal (Å)",
+        occupancy=float(args.occupancy),
+    )
 
     # oligo_comp.calculate_conserved_graph()
     # oligo_comp.calculate_differnece_graphs()
