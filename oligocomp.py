@@ -1,3 +1,6 @@
+import warnings
+warnings.filterwarnings("ignore", category=DeprecationWarning, module="MDAnalysis.*")
+
 import helperfunctions as _hf
 import numpy as np
 import MDAnalysis as _mda

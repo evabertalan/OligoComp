@@ -20,6 +20,8 @@
 #    Federico Guerra, Leonid Brown, and Ana-Nicoleta Bondar.
 #    Bridge: A graph-based algorithm to analyze dynamic H-bond networks
 #    in membrane proteins, Journal of Chemical Theory and Computation, 2019.
+import warnings
+warnings.filterwarnings("ignore", category=DeprecationWarning, module="MDAnalysis.*")
 
 from . import helpfunctions as _hf
 from .basic import BasicFunctionality
