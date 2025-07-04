@@ -212,7 +212,8 @@ class NetworkAnalysis(BasicFunctionality):
                         components.append(component)
             component = _nx.compose_all(components)
         else:
-            for component in _nx.connected_component_subgraphs(graph):
+            for c in _nx.connected_components(graph):
+                component = graph.subgraph(c).copy()
                 if root in component.nodes():
                     break
         self.applied_filters["connected_component"] = root

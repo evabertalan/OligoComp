@@ -88,8 +88,10 @@ class OligoComp:
         stop=None,
         residuewise=True,
         wrap_dcd=False,
+        connected_component_root=None,
     ):
         self.distance = distance
+        self.connected_component_root = connected_component_root
         self.logger.info(f"H-bond criteria cut off distance: {self.distance} A")
 
         self.include_backbone_sidechain = include_backbone_sidechain
@@ -114,9 +116,14 @@ class OligoComp:
                 """
             )
 
-        self.water_graphs_folder = _hf.create_directory(
-            Path(self.graph_object_folder, f"{self.max_water}_water_wires")
-        )
+        if connected_component_root:
+            self.water_graphs_folder = _hf.create_directory(
+                Path(self.graph_object_folder, f"{self.max_water}_water_wires_connected_components")
+            )
+        else:
+            self.water_graphs_folder = _hf.create_directory(
+                Path(self.graph_object_folder, f"{self.max_water}_water_wires")
+            )
 
         if check_angle:
             self.logger.info(f"H-bond criteria cut off angle: {cut_angle} degree")
@@ -156,6 +163,10 @@ class OligoComp:
 
             wba.set_water_wires(water_in_convex_hull=max_water, max_water=max_water)
             wba.compute_average_water_per_wire()
+            if connected_component_root:
+                res_name, res_id = _hf.get_node_name_pats(connected_component_root)
+                root = f'{segment}-{res_name}-{res_id}'
+                wba.filter_connected_component(root)
             self.graph_coord_objects[segment].update({"wba": wba})
 
             wba.dump_to_file(
@@ -448,9 +459,14 @@ class OligoComp:
                 else ""
             )
 
-            plot_folder = _hf.create_directory(
-                Path(self.workfolder, f"{self.max_water}_water_wires", segment)
-            )
+            if self.connected_component_root:
+                plot_folder = _hf.create_directory(
+                    Path(self.workfolder, f"{self.max_water}_water_wires_connected_components", self.connected_component_root, segment)
+                )
+            else:
+                plot_folder = _hf.create_directory(
+                    Path(self.workfolder, f"{self.max_water}_water_wires", segment)
+                )
 
             waters = f"_max_{self.max_water}_water_bridges" if self.max_water > 0 else ""
             occ = f"_min_occupancy_{occupancy}" if occupancy else ""
@@ -617,9 +633,14 @@ class OligoComp:
             and self.include_backbone_sidechain
             else ""
         )
-        plot_folder = _hf.create_directory(
-            Path(self.workfolder, f'{self.max_water}_water_wires')
-        )
+        if self.connected_component_root:
+            plot_folder = _hf.create_directory(
+                Path(self.workfolder, f"{self.max_water}_water_wires_connected_components", self.connected_component_root)
+            )
+        else:
+            plot_folder = _hf.create_directory(
+                Path(self.workfolder, f"{self.max_water}_water_wires")
+            )
         waters = (
             "_max_" + str(self.max_water) + "_water_bridges"
             if self.max_water > 0
@@ -826,9 +847,15 @@ class OligoComp:
                     else ""
                 )
 
-                plot_folder = _hf.create_directory(
-                    Path(self.workfolder, f"{self.max_water}_water_wires", segment)
-                )
+                if self.connected_component_root:
+                    plot_folder = _hf.create_directory(
+                        Path(self.workfolder, f"{self.max_water}_water_wires_connected_components", self.connected_component_root, segment)
+                    )
+                else:
+                    plot_folder = _hf.create_directory(
+                        Path(self.workfolder, f"{self.max_water}_water_wires", segment)
+                    )
+
                 waters = (
                     "_max_" + str(self.max_water) + "_water_bridges"
                     if self.max_water > 0
@@ -972,7 +999,11 @@ def main():
         action="store_true",
         help="Include interactions between backbone and sidechain atoms in the analysis.",
     )
-
+    parser.add_argument(
+        "--root",
+        type=str,
+        help="In a form ASP-213",
+    )
 
     args = parser.parse_args()
 
@@ -1001,7 +1032,7 @@ def main():
         target_folder=output_folder,
         psf_file=args.psf,
         dcd_files=dcd_files,
-        segment_names=args.segment_names, #check if they are really as list
+        segment_names=args.segment_names,
         plot_parameters=ast.literal_eval(args.plot_parameters),
     )
     oligo_comp.calculate_graphs(
@@ -1018,6 +1049,7 @@ def main():
         start=args.start,
         stop=args.stop,
         include_backbone_sidechain=args.include_backbone,
+        connected_component_root=args.root,
     )
     oligo_comp.plot_graphs(
         label_nodes=True,
