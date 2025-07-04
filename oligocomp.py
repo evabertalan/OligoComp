@@ -11,13 +11,15 @@ import glob
 import ast
 import pdb
 
+
+
 class OligoComp:
     def __init__(
         self,
         target_folder,
         psf_file,
         dcd_files,
-        segment_names,
+        segment_names=None,
         plot_parameters={},
     ):
 
@@ -37,7 +39,11 @@ class OligoComp:
 
         self.psf_file = psf_file
         self.dcd_files = dcd_files
-        self.segments = segment_names
+        if segment_names:
+            self.segments = segment_names
+        else:
+            u = _mda.Universe(psf_file, dcd_files)
+            self.segments = u.select_atoms("protein").segments.segids
 
         self.graph_coord_objects = {}
         for segment in self.segments:
@@ -197,17 +203,17 @@ class OligoComp:
             )
             self.pca_positions = _hf.calculate_pca_positions(self.node_positions)
 
-    def _get_node_positions(self, objects, pca=True):
+    def _get_node_positions(self, segment, pca=True):
         node_pos = {}
-        for node in objects["graph"].nodes:
+        for node in segment["graph"].nodes:
             n = _hf.get_node_name(node)
             if (
                 n not in self.node_positions.keys()
                 or n.split("-")[1] in _hf.water_types
             ):
-                chain_id, res_name, res_id = _hf.get_node_name_pats(n)
+                res_name, res_id = _hf.get_node_name_pats(n)
                 coords = (
-                    self.graph_coord_objects[segment]["selected_atoms"]
+                    segment["selected_atoms"]
                     .select_atoms("resid " + res_id)
                     .positions[0]
                 )
@@ -260,6 +266,7 @@ class OligoComp:
 
                     key = e0 + ":" + e1
                     key2 = e1 + ":" + e0
+
                     if key in avg_waters:
                         if key in avg_water_per_edge:
                             avg_water_per_edge[key].append(avg_waters[key])
@@ -363,9 +370,11 @@ class OligoComp:
                                 fontsize=self.plot_parameters["edge_label_size"],
                             )
 
-            for n, values in node_pca_pos.items():
-                if n in graph.nodes:
-                    if n.split("-")[1] in _hf.water_types:
+            for n in graph.nodes:
+                n = _hf.get_node_name(n)
+                if n in node_pca_pos.keys():
+                    values = node_pca_pos[n]
+                    if n.split("-")[0] in _hf.water_types:
                         ax.scatter(
                             values[0],
                             values[1],
@@ -373,8 +382,7 @@ class OligoComp:
                             s=self.plot_parameters["node_size"] * 0.7,
                             zorder=5,
                         )
-                    elif n.split("-")[1] in _hf.amino_d.keys():
-
+                    elif n.split("-")[0] in _hf.amino_d.keys():
                         ax.scatter(
                             values[0],
                             values[1],
@@ -398,7 +406,7 @@ class OligoComp:
                     n = _hf.get_node_name(n)
                     if n in node_pca_pos.keys():
                         values = node_pca_pos[n]
-                        chain_id, res_name, res_id = _hf.get_node_name_pats(n)
+                        res_name, res_id = _hf.get_node_name_pats(n)
                         if res_name in _hf.water_types:
                             pass  # temporary turn off water labels
                             # ax.annotate(
@@ -408,7 +416,7 @@ class OligoComp:
                             # )
                         elif res_name in _hf.amino_d.keys():
                             res_label = (
-                                f"{chain_id}-{_hf.amino_d[res_name]}{res_id}"
+                                f"{segment}-{_hf.amino_d[res_name]}{res_id}"
                                 if self.plot_parameters["show_chain_label"]
                                 else f"{_hf.amino_d[res_name]}{res_id}"
                             )
@@ -420,7 +428,7 @@ class OligoComp:
                             )
                         else:
                             res_label = (
-                                f"{chain_id}-{res_name}{res_id}"
+                                f"{segment}-{res_name}{res_id}"
                                 if self.plot_parameters["show_chain_label"]
                                 else f"{res_name}{res_id}"
                             )
@@ -561,14 +569,14 @@ class OligoComp:
 
         if label_nodes:
             for node in self.conserved_nodes:
-                chain_id, res_name, res_id = _hf.get_node_name_pats(node)
+                res_name, res_id = _hf.get_node_name_pats(node)
                 if node in self.pca_positions.keys():
                     if (
                         res_name not in _hf.water_types
                         and res_name in _hf.amino_d.keys()
                     ):
                         l = (
-                            f"{chain_id}-{_hf.amino_d[res_name]}{res_id}"
+                            f"{segment}-{_hf.amino_d[res_name]}{res_id}"
                             if self.plot_parameters["show_chain_label"]
                             else f"{_hf.amino_d[res_name]}{res_id}"
                         )
@@ -586,7 +594,7 @@ class OligoComp:
                         and res_name not in _hf.amino_d.keys()
                     ):
                         l = (
-                            f"{chain_id}-{res_name}{res_id}"
+                            f"{segment}-{res_name}{res_id}"
                             if self.plot_parameters["show_chain_label"]
                             else f"{res_name}{res_id}"
                         )
@@ -782,12 +790,12 @@ class OligoComp:
                         n = _hf.get_node_name(n)
                         if n in node_pca_pos.keys():
                             values = node_pca_pos[n]
-                            chain_id, res_name, res_id = _hf.get_node_name_pats(n)
+                            res_name, res_id = _hf.get_node_name_pats(n)
                             if res_name in _hf.water_types:
                                 pass  # ax.annotate(f'W{res_id}', (values[0]+0.2, values[1]-0.25), fontsize=self.plot_parameters['node_label_size'])
                             elif res_name in _hf.amino_d.keys():
                                 l = (
-                                    f"{chain_id}-{_hf.amino_d[res_name]}{res_id}"
+                                    f"{segment}-{_hf.amino_d[res_name]}{res_id}"
                                     if self.plot_parameters["show_chain_label"]
                                     else f"{_hf.amino_d[res_name]}{res_id}"
                                 )
@@ -798,7 +806,7 @@ class OligoComp:
                                 )
                             else:
                                 l = (
-                                    f"{chain_id}-{res_name}{res_id}"
+                                    f"{segment}-{res_name}{res_id}"
                                     if self.plot_parameters["show_chain_label"]
                                     else f"{res_name}{res_id}"
                                 )
@@ -854,9 +862,9 @@ def main():
         help="Path(s) to the DCD (trajectory) file(s). Supports wildcard patterns (e.g., '*.dcd').",
     )
     parser.add_argument(
-        "segment_names",
+        "--segment_names",
         nargs="+",
-        help="Names of the segments as given in the topology. These are the different segments or chains between the conserved and difference graphs will be calculated.",
+        help="Names of the segments as given in the topology. These are the different segments or chains between the conserved and difference graphs will be calculated. If non is given, all protein segments will be used.",
     )
     parser.add_argument(
         "--output_folder",

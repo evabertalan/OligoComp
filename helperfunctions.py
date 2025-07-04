@@ -171,19 +171,18 @@ def json_write_file(path, obj):
 
 
 def get_node_name(node):
-    return node
+    segid, res_name, res_id = node.split("-")
+    return f'{res_name}-{res_id}'
+    # return node
 
 
 def get_node_name_pats(node, with_group=False):
     if with_group:
-        return (
-            node.split("-")[0],
-            node.split("-")[1],
-            str(int(node.split("-")[2])),
-            node.split("-")[3],
-        )
+        res_name, res_id, atom = node.split("-")
+        return res_name, res_id, atom
     else:
-        return node.split("-")[0], node.split("-")[1], str(int(node.split("-")[2]))
+        res_name, res_id = node.split("-")
+        return res_name, res_id
 
 
 def get_edge_params(wba, edges):
