@@ -89,6 +89,7 @@ class OligoComp:
         residuewise=True,
         wrap_dcd=False,
         connected_component_root=None,
+        occupancy=None
     ):
         self.distance = distance
         self.connected_component_root = connected_component_root
@@ -166,6 +167,8 @@ class OligoComp:
             if connected_component_root:
                 res_name, res_id = _hf.get_node_name_pats(connected_component_root)
                 root = f'{segment}-{res_name}-{res_id}'
+                if occupancy:
+                    wba.filter_occupancy(occupancy)
                 wba.filter_connected_component(root)
             self.graph_coord_objects[segment].update({"wba": wba})
 
@@ -334,7 +337,7 @@ class OligoComp:
             self.logger.debug(f"Creating water wire graph for {segment}")
             fig, ax = _hf.create_plot(
                 title=f"""Water wire graph of structure {segment}
-                Selection:{self.selection[1:-16]}""",
+                Selection: {self.selection}""",
                 xlabel=xlabel,
                 ylabel=ylabel,
                 plot_parameters=self.plot_parameters,
@@ -532,7 +535,7 @@ class OligoComp:
 
         plot_name = "H-bond" if self.graph_type == "hbond" else "water wire"
         fig, ax = _hf.create_plot(
-            title=f"Conserved {plot_name} graph\nSelection: {self.selection[1:-16]}",
+            title=f"Conserved {plot_name} graph\nSelection: {self.selection}",
             xlabel=xlabel,
             ylabel=ylabel,
             plot_parameters=self.plot_parameters,
@@ -712,7 +715,7 @@ class OligoComp:
                 )
                 plot_name = "H-bond" if self.graph_type == "hbond" else "water wire"
                 fig, ax = _hf.create_plot(
-                    title=f"Difference {plot_name} graph of segment {segment}\nSelection: {self.selection[1:-16]}",
+                    title=f"Difference {plot_name} graph of segment {segment}\nSelection: {self.selection}",
                     xlabel=xlabel,
                     ylabel=ylabel,
                     plot_parameters=self.plot_parameters,
@@ -1050,6 +1053,7 @@ def main():
         stop=args.stop,
         include_backbone_sidechain=args.include_backbone,
         connected_component_root=args.root,
+        occupancy=float(args.occupancy),
     )
     oligo_comp.plot_graphs(
         label_nodes=True,
