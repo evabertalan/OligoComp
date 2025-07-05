@@ -1,19 +1,15 @@
-import warnings
-warnings.filterwarnings("ignore", category=DeprecationWarning, module="MDAnalysis.*")
-
 import helperfunctions as _hf
 import numpy as np
 import MDAnalysis as _mda
 import mdhbond as mdh
 import matplotlib.pyplot as plt
-import matplotlib as mpl
 from pathlib import Path
 import os
 import argparse
 import glob
 import ast
-import pdb
-
+import warnings
+warnings.filterwarnings("ignore", category=DeprecationWarning, module="MDAnalysis.*")
 
 
 class OligoComp:
@@ -1011,6 +1007,19 @@ def main():
         help="In a form ASP-213",
     )
 
+    parser.add_argument( #TODO: check whether it is needed
+        "--res_id_label_shift",
+        default=0,
+        type=int,
+        help="Shift residue ID labels by a specified amount in plots (default: 0).",
+    )
+
+    parser.add_argument(
+        "--no_label_plots",
+        action="store_true",
+        help="Creates all the plots without labels as well.",
+    )
+
     args = parser.parse_args()
 
     base = os.path.basename(args.psf)
@@ -1060,20 +1069,37 @@ def main():
     )
     oligo_comp.plot_graphs(
         label_nodes=True,
-        xlabel="PCA projected membrane plane (Å)",
-        ylabel="Membrane normal (Å)",
         occupancy=float(args.occupancy),
     )
 
     oligo_comp.plot_conserved_graph(
+        label_nodes=True,
         conservation_threshold=float(args.conservation_threshold),
         occupancy=float(args.occupancy)
     )
     oligo_comp.plot_differnece_graphs(
+        label_nodes=True,
         conservation_threshold=float(args.conservation_threshold),
         occupancy=float(args.occupancy))
 
+    if args.no_label_plots:
+        oligo_comp.plot_graphs(
+            label_nodes=False,
+            label_edges=False,
+            occupancy=float(args.occupancy),
+        )
 
+        oligo_comp.plot_conserved_graph(
+            label_nodes=False,
+            label_edges=False,
+            conservation_threshold=float(args.conservation_threshold),
+            occupancy=float(args.occupancy)
+        )
+        oligo_comp.plot_differnece_graphs(
+            label_nodes=False,
+            label_edges=False,
+            conservation_threshold=float(args.conservation_threshold),
+            occupancy=float(args.occupancy))
 
 
 if __name__ == "__main__":
