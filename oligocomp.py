@@ -470,7 +470,7 @@ class OligoComp:
                     Path(self.workfolder, f"{self.max_water}_water_wires", segment)
                 )
 
-            waters = f"_max_{self.max_water}_water_bridges" if self.max_water > 0 else ""
+            waters = f"_max_{self.max_water}_water_bridges"
             occ = f"_min_occupancy_{occupancy}" if occupancy else ""
             for form in self.plot_parameters["formats"]:
                 plt.savefig(
