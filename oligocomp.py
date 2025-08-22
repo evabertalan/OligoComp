@@ -20,15 +20,17 @@ class OligoComp:
         dcd_files,
         segment_names=None,
         plot_parameters={},
+        dont_save_graph_objects=False,
     ):
 
         self.plot_parameters = _hf.get_plot_parameters(plot_parameters)
         self.target_folder = target_folder
         self.workfolder = _hf.create_directory(Path(target_folder, "workfolder"))
 
-        self.graph_object_folder = _hf.create_directory(
-            Path(self.workfolder, "graph_objects")
-        )
+        if not dont_save_graph_objects:
+            self.graph_object_folder = _hf.create_directory(
+                Path(self.workfolder, "graph_objects")
+            )
 
         self.helper_files_folder = _hf.create_directory(
             Path(self.workfolder, ".helper_files")
@@ -88,7 +90,8 @@ class OligoComp:
         residuewise=True,
         wrap_dcd=False,
         connected_component_root=None,
-        occupancy=None
+        occupancy=None,
+        dont_save_graph_objects=False,
     ):
         self.distance = distance
         self.connected_component_root = connected_component_root
@@ -114,15 +117,6 @@ class OligoComp:
                 f"""List of additional donors: {additional_donors}
                 List of additional acceptors: {additional_acceptors}
                 """
-            )
-
-        if connected_component_root:
-            self.water_graphs_folder = _hf.create_directory(
-                Path(self.graph_object_folder, f"{self.max_water}_water_wires_connected_components")
-            )
-        else:
-            self.water_graphs_folder = _hf.create_directory(
-                Path(self.graph_object_folder, f"{self.max_water}_water_wires")
             )
 
         if check_angle:
@@ -171,13 +165,6 @@ class OligoComp:
                 wba.filter_connected_component(root)
             self.graph_coord_objects[segment].update({"wba": wba})
 
-            wba.dump_to_file(
-                Path(
-                    self.water_graphs_folder,
-                    f"{segment}_{self.max_water}_water_wires_graph.pickle",
-                )
-            )
-
             self.graph = wba.filtered_graph
             self.graph_coord_objects[segment].update({"graph": self.graph})
 
@@ -185,31 +172,48 @@ class OligoComp:
             selected_atoms = u.select_atoms(selection)
             self.graph_coord_objects[segment].update({"selected_atoms": selected_atoms})
 
-            _hf.pickle_write_file(
-                Path(
-                    self.helper_files_folder,
-                    f"{segment}_{self.max_water}_water_nx_graphs.pickle",
-                ),
-                self.graph,
-            )
+            if not dont_save_graph_objects:
+                if connected_component_root:
+                    self.water_graphs_folder = _hf.create_directory(
+                        Path(self.graph_object_folder, f"{self.max_water}_water_wires_connected_components")
+                    )
+                else:
+                    self.water_graphs_folder = _hf.create_directory(
+                        Path(self.graph_object_folder, f"{self.max_water}_water_wires")
+                    )
 
-            _hf.json_write_file(
-                Path(
-                    self.helper_files_folder,
-                    f"{segment}_{self.max_water}_water_graph_edge_info.json",
-                ),
-                _hf.edge_info(wba, self.graph.edges),
-            )
+                wba.dump_to_file(
+                    Path(
+                        self.water_graphs_folder,
+                        f"{segment}_{self.max_water}_water_wires_graph.pickle",
+                    )
+                )
 
-            graph_coord_object_loc = Path(
-                self.helper_files_folder,
-                f"{segment}_{self.max_water}_water_wires_coord_objects.pickle",
-            )
-            _hf.pickle_write_file(
-                graph_coord_object_loc,
-                self.graph_coord_objects[segment],
-            )
-            self.logger.info(f"Graph object is saved as: {graph_coord_object_loc}")
+                _hf.pickle_write_file(
+                    Path(
+                        self.helper_files_folder,
+                        f"{segment}_{self.max_water}_water_nx_graphs.pickle",
+                    ),
+                    self.graph,
+                )
+
+                _hf.json_write_file(
+                    Path(
+                        self.helper_files_folder,
+                        f"{segment}_{self.max_water}_water_graph_edge_info.json",
+                    ),
+                    _hf.edge_info(wba, self.graph.edges),
+                )
+
+                graph_coord_object_loc = Path(
+                    self.helper_files_folder,
+                    f"{segment}_{self.max_water}_water_wires_coord_objects.pickle",
+                )
+                _hf.pickle_write_file(
+                    graph_coord_object_loc,
+                    self.graph_coord_objects[segment],
+                )
+                self.logger.info(f"Graph object is saved as: {graph_coord_object_loc}")
 
             self.node_positions = self._add_node_positions_from_structure(
                 selected_atoms, self.graph, self.residuewise
@@ -1020,6 +1024,12 @@ def main():
         help="Creates all the plots without labels as well.",
     )
 
+    parser.add_argument(
+        "--dont_save_graph_objects",
+        action="store_true",
+        help="Don't save the metadata and full graph objects of the calculations. Use this flag if there is not enough space for the calculation results or when the graph objects are not needed for further calculations or analysis.",
+    )
+
     args = parser.parse_args()
 
     base = os.path.basename(args.psf)
@@ -1049,6 +1059,7 @@ def main():
         dcd_files=dcd_files,
         segment_names=args.segment_names,
         plot_parameters=ast.literal_eval(args.plot_parameters),
+        dont_save_graph_objects=args.dont_save_graph_objects,
     )
     oligo_comp.calculate_graphs(
         max_water=int(args.max_water),
@@ -1066,6 +1077,7 @@ def main():
         include_backbone_sidechain=args.include_backbone,
         connected_component_root=args.root,
         occupancy=float(args.occupancy),
+        dont_save_graph_objects=args.dont_save_graph_objects,
     )
     oligo_comp.plot_graphs(
         label_nodes=True,
