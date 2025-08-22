@@ -31,6 +31,9 @@ from scipy.sparse import csr_matrix
 from scipy.sparse.csgraph import dijkstra
 from collections import OrderedDict as _odict
 from matplotlib.ticker import MaxNLocator
+import warnings
+
+warnings.filterwarnings("ignore", category=DeprecationWarning, module="MDAnalysis.*")
 
 # import matplotlib
 # matplotlib.use('TKAgg', warn=False)
@@ -355,13 +358,17 @@ class WireAnalysis(NetworkAnalysis):
                 local_water_tree = _sp.cKDTree(local_water_coordinates)
 
                 local_water_index += self._first_water_id
-                local_pairs = [
-                    (i, local_water_index[j])
-                    for i, bla in enumerate(
-                        selection_tree.query_ball_tree(local_water_tree, self.distance)
-                    )
-                    for j in bla
-                ]
+                local_pairs = _np.array(
+                    [
+                        (i, local_water_index[j])
+                        for i, bla in enumerate(
+                            selection_tree.query_ball_tree(
+                                local_water_tree, self.distance
+                            )
+                        )
+                        for j in bla
+                    ]
+                )
                 local_water_index -= self._first_water_id
 
                 try:
@@ -391,11 +398,32 @@ class WireAnalysis(NetworkAnalysis):
 
             if self.check_angle:
                 all_coordinates = _np.vstack((selection_coordinates, water_coordinates))
-                da_hbonds = _hf.check_angle(da_pairs, self.heavy2hydrogen, all_coordinates, hydrogen_coordinates, self.cut_angle)
-                if water_pairs.size > 0: water_hbonds = _hf.check_angle_water(water_pairs, water_coordinates, hydrogen_coordinates[self._first_water_hydrogen_id:], self.cut_angle)
-                else: water_hbonds = _np.array([])
-                if local_pairs.size > 0: local_hbonds = _hf.check_angle(local_pairs, self.heavy2hydrogen, all_coordinates, hydrogen_coordinates, self.cut_angle)
-                else: local_hbonds = _np.array([])
+                da_hbonds = _hf.check_angle(
+                    da_pairs,
+                    self.heavy2hydrogen,
+                    all_coordinates,
+                    hydrogen_coordinates,
+                    self.cut_angle,
+                )
+                if water_pairs.size > 0:
+                    water_hbonds = _hf.check_angle_water(
+                        water_pairs,
+                        water_coordinates,
+                        hydrogen_coordinates[self._first_water_hydrogen_id :],
+                        self.cut_angle,
+                    )
+                else:
+                    water_hbonds = _np.array([])
+                if local_pairs.size > 0:
+                    local_hbonds = _hf.check_angle(
+                        local_pairs,
+                        self.heavy2hydrogen,
+                        all_coordinates,
+                        hydrogen_coordinates,
+                        self.cut_angle,
+                    )
+                else:
+                    local_hbonds = _np.array([])
             else:
                 da_hbonds = da_pairs
                 water_hbonds = water_pairs
@@ -406,7 +434,7 @@ class WireAnalysis(NetworkAnalysis):
 
             if local_hbonds.size > 0:
                 local_hbonds = _np.sort(_np.array(local_hbonds))
-                local_hbonds[:,0]=self.da_trans[local_hbonds[:,0]]
+                local_hbonds[:, 0] = self.da_trans[local_hbonds[:, 0]]
 
                 g = _nx.Graph()
                 g.add_edges_from(water_hbonds)
@@ -465,7 +493,9 @@ class WireAnalysis(NetworkAnalysis):
                         except:
                             results[wire_info] = _np.ones(frames) * _np.inf
                             results[wire_info][frame_count] = water_in_wire
-                            intervals_results[wire_info] = _np.arange(frames, dtype=_np.int)
+                            intervals_results[wire_info] = _np.arange(
+                                frames, dtype=_np.int
+                            )
                             intervals_results[wire_info][frame_count] = wire_hash
 
                 already_checked.append(source)
