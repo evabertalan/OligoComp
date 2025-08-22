@@ -1,5 +1,6 @@
 import helperfunctions as _hf
 import numpy as np
+import pandas as pd
 import MDAnalysis as _mda
 import mdhbond as mdh
 import matplotlib.pyplot as plt
@@ -171,6 +172,27 @@ class OligoComp:
             u = _mda.Universe(psf_file, dcd_files)
             selected_atoms = u.select_atoms(selection)
             self.graph_coord_objects[segment].update({"selected_atoms": selected_atoms})
+
+            if self.connected_component_root:
+                plot_folder = _hf.create_directory(
+                    Path(self.workfolder, f"{self.max_water}_water_wires_connected_components", self.connected_component_root, segment)
+                )
+            else:
+                plot_folder = _hf.create_directory(
+                    Path(self.workfolder, f"{self.max_water}_water_wires", segment)
+                )
+
+            df = pd.DataFrame.from_dict(
+                _hf.edge_info(wba, self.graph.edges), orient="index"
+            ).reset_index()
+            df.columns = ["edge", "water", "occupancy"]
+
+            waters = f"_max_{self.max_water}_water_bridges"
+            df.to_csv(
+                Path(plot_folder, f"{segment}{waters}_water_occupancy_edge_info.txt"),
+                sep="\t",
+                index=False,
+            )
 
             if not dont_save_graph_objects:
                 if connected_component_root:
