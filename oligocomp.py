@@ -196,10 +196,15 @@ class OligoComp:
 
             if not dont_save_graph_objects:
                 if connected_component_root:
+                    root = f"_{self.connected_component_root}_"
                     self.water_graphs_folder = _hf.create_directory(
-                        Path(self.graph_object_folder, f"{self.max_water}_water_wires_connected_components")
+                        Path(
+                            self.graph_object_folder,
+                            f"{self.max_water}_water_wires_connected_components",
+                        )
                     )
                 else:
+                    root = ""
                     self.water_graphs_folder = _hf.create_directory(
                         Path(self.graph_object_folder, f"{self.max_water}_water_wires")
                     )
@@ -207,14 +212,14 @@ class OligoComp:
                 wba.dump_to_file(
                     Path(
                         self.water_graphs_folder,
-                        f"{segment}_{self.max_water}_water_wires_graph.pickle",
+                        f"{segment}{root}{self.max_water}_water_wires_graph.pickle",
                     )
                 )
 
                 _hf.pickle_write_file(
                     Path(
                         self.helper_files_folder,
-                        f"{segment}_{self.max_water}_water_nx_graphs.pickle",
+                        f"{segment}{root}{self.max_water}_water_nx_graphs.pickle",
                     ),
                     self.graph,
                 )
@@ -222,14 +227,14 @@ class OligoComp:
                 _hf.json_write_file(
                     Path(
                         self.helper_files_folder,
-                        f"{segment}_{self.max_water}_water_graph_edge_info.json",
+                        f"{segment}{root}{self.max_water}_water_graph_edge_info.json",
                     ),
                     _hf.edge_info(wba, self.graph.edges),
                 )
 
                 graph_coord_object_loc = Path(
                     self.helper_files_folder,
-                    f"{segment}_{self.max_water}_water_wires_coord_objects.pickle",
+                    f"{segment}{root}{self.max_water}_water_wires_coord_objects.pickle",
                 )
                 _hf.pickle_write_file(
                     graph_coord_object_loc,
@@ -498,11 +503,14 @@ class OligoComp:
 
             waters = f"_max_{self.max_water}_water_bridges"
             occ = f"_min_occupancy_{occupancy}" if occupancy else ""
+            root = (
+                f"_{self.connected_component_root}" if self.connected_component_root else ""
+            )
             for form in self.plot_parameters["formats"]:
                 plt.savefig(
                     Path(
                         plot_folder,
-                        f"{segment}{waters}{occ}_graph{is_backbone}{is_label}.{form}",
+                        f"{segment}{root}{waters}{occ}_graph{is_backbone}{is_label}.{form}",
                     ),
                     format=form,
                     dpi=self.plot_parameters["plot_resolution"],
@@ -511,7 +519,7 @@ class OligoComp:
                 _hf.write_text_file(
                     Path(
                         plot_folder,
-                        f"{segment}{waters}{occ}_water_wire_graph_info.txt",
+                        f"{segment}{root}{waters}{occ}_water_wire_graph_info.txt",
                     ),
                     [
                         "Water wire graph of " + segment,
@@ -669,21 +677,22 @@ class OligoComp:
             plot_folder = _hf.create_directory(
                 Path(self.workfolder, f"{self.max_water}_water_wires")
             )
-        waters = (
-            "_max_" + str(self.max_water) + "_water_bridges"
-            if self.max_water > 0
-            else ""
+
+        waters = f"_max_{self.max_water}_water_bridges"
+        occ = f"_min_occupancy_{occupancy}" if occupancy else ""
+        root = (
+            f"_{self.connected_component_root}" if self.connected_component_root else ""
         )
-        occ = "_min_occupancy_" + str(self.occupancy) if self.occupancy else ""
+
         for form in self.plot_parameters["formats"]:
             plt.savefig(
-                Path(plot_folder, f'conserved{waters}{occ}_graph{is_backbone}{is_label}.{form}'),
+                Path(plot_folder, f'conserved{root}{waters}{occ}_graph{is_backbone}{is_label}.{form}'),
                 format=form,
                 dpi=self.plot_parameters["plot_resolution"],
             )
         if is_label:
             _hf.write_text_file(
-                Path(plot_folder, f'conserved{waters}{occ}_graph_inof.txt'),
+                Path(plot_folder, f'conserved{root}{waters}{occ}_graph_inof.txt'),
                 [
                     "Conserved water wire graph of "
                     + str(len(self.graph_coord_objects.keys()))
@@ -1030,7 +1039,7 @@ def main():
     parser.add_argument(
         "--root",
         type=str,
-        help="In a form ASP-213",
+        help="Root node for connected component search in a form of: ASP-213",
     )
 
     parser.add_argument( #TODO: check whether it is needed
