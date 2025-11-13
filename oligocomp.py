@@ -430,7 +430,7 @@ class OligoComp:
 
                     sorted_e_pair_no_segid = sorted((('-').join(_hf.get_node_name(e[0]).split('-')[1:]), ('-').join(_hf.get_node_name(e[1]).split('-')[1:])))
 
-                    if np.any(np.all(sorted_e_pair_no_segid == conserved_inter_monomer_edges, axis=1)):
+                    if len(conserved_inter_monomer_edges) and np.any(np.all(sorted_e_pair_no_segid == conserved_inter_monomer_edges, axis=1)):
                         color = 'blue'
                         inter_monomer_edges.append(e)
 
@@ -452,7 +452,7 @@ class OligoComp:
                         markeredgecolor=self.plot_parameters["graph_color"],
                     )
 
-                    if label_edges:
+                    if label_nodes:
                         waters, occ_per_wire, _ = _hf.get_edge_params(wba, graph.edges)
                         ax.annotate(
                             np.round(waters[list(graph.edges).index(e)], 1),
@@ -682,7 +682,7 @@ class OligoComp:
                     markerfacecolor=self.plot_parameters["graph_color"],
                     markeredgecolor=self.plot_parameters["graph_color"],
                 )
-            if label_edges and self.avg_water_per_conserved_edges:
+            if label_nodes and self.avg_water_per_conserved_edges:
                 key1 = e[0] + ":" + e[1]
                 key2 = e[1] + ":" + e[0]
                 water = [
@@ -887,7 +887,7 @@ class OligoComp:
                                     "difference_graph_color"
                                 ],
                             )
-                        if label_edges and self.graph_type == "water_wire":
+                        if label_nodes and self.graph_type == "water_wire":
                             waters, occ_per_wire, _ = _hf.get_edge_params(
                                 objects["wba"], graph.edges
                             )
@@ -1185,65 +1185,65 @@ def main():
     else:
         wrap_dcd = True
 
-    # oligo_comp = OligoComp(
-    #     target_folder=output_folder,
-    #     psf_file=args.psf,
-    #     dcd_files=dcd_files,
-    #     segment_names=args.segment_names,
-    #     plot_parameters=ast.literal_eval(args.plot_parameters),
-    #     dont_save_graph_objects=args.dont_save_graph_objects,
-    # )
-    # oligo_comp.calculate_graphs(
-    #     max_water=int(args.max_water),
-    #     check_angle=True,
-    #     selection=args.selection,
-    #     additional_donors=ast.literal_eval(args.additional_donors),
-    #     additional_acceptors=ast.literal_eval(args.additional_acceptors),
-    #     residuewise=args.residuewise,
-    #     distance=args.distance,
-    #     cut_angle=args.cut_angle,
-    #     wrap_dcd=wrap_dcd,
-    #     step=args.step,
-    #     start=args.start,
-    #     stop=args.stop,
-    #     include_backbone_sidechain=args.include_backbone,
-    #     connected_component_root=args.root,
-    #     occupancy=float(args.occupancy),
-    #     dont_save_graph_objects=args.dont_save_graph_objects,
-    # )
-    # oligo_comp.plot_graphs(
-    #     label_nodes=True,
-    #     occupancy=float(args.occupancy),
-    # )
+    oligo_comp = OligoComp(
+        target_folder=output_folder,
+        psf_file=args.psf,
+        dcd_files=dcd_files,
+        segment_names=args.segment_names,
+        plot_parameters=ast.literal_eval(args.plot_parameters),
+        dont_save_graph_objects=args.dont_save_graph_objects,
+    )
+    oligo_comp.calculate_graphs(
+        max_water=int(args.max_water),
+        check_angle=True,
+        selection=args.selection,
+        additional_donors=ast.literal_eval(args.additional_donors),
+        additional_acceptors=ast.literal_eval(args.additional_acceptors),
+        residuewise=args.residuewise,
+        distance=args.distance,
+        cut_angle=args.cut_angle,
+        wrap_dcd=wrap_dcd,
+        step=args.step,
+        start=args.start,
+        stop=args.stop,
+        include_backbone_sidechain=args.include_backbone,
+        connected_component_root=args.root,
+        occupancy=float(args.occupancy),
+        dont_save_graph_objects=args.dont_save_graph_objects,
+    )
+    oligo_comp.plot_graphs(
+        label_nodes=True,
+        occupancy=float(args.occupancy),
+    )
 
-    # oligo_comp.plot_conserved_graph(
-    #     label_nodes=True,
-    #     conservation_threshold=float(args.conservation_threshold),
-    #     occupancy=float(args.occupancy)
-    # )
-    # oligo_comp.plot_differnece_graphs(
-    #     label_nodes=True,
-    #     conservation_threshold=float(args.conservation_threshold),
-    #     occupancy=float(args.occupancy))
+    oligo_comp.plot_conserved_graph(
+        label_nodes=True,
+        conservation_threshold=float(args.conservation_threshold),
+        occupancy=float(args.occupancy)
+    )
+    oligo_comp.plot_differnece_graphs(
+        label_nodes=True,
+        conservation_threshold=float(args.conservation_threshold),
+        occupancy=float(args.occupancy))
 
-    # if args.no_label_plots:
-    #     oligo_comp.plot_graphs(
-    #         label_nodes=False,
-    #         label_edges=False,
-    #         occupancy=float(args.occupancy),
-    #     )
+    if args.no_label_plots:
+        oligo_comp.plot_graphs(
+            label_nodes=False,
+            label_edges=False,
+            occupancy=float(args.occupancy),
+        )
 
-    #     oligo_comp.plot_conserved_graph(
-    #         label_nodes=False,
-    #         label_edges=False,
-    #         conservation_threshold=float(args.conservation_threshold),
-    #         occupancy=float(args.occupancy)
-    #     )
-    #     oligo_comp.plot_differnece_graphs(
-    #         label_nodes=False,
-    #         label_edges=False,
-    #         conservation_threshold=float(args.conservation_threshold),
-    #         occupancy=float(args.occupancy))
+        oligo_comp.plot_conserved_graph(
+            label_nodes=False,
+            label_edges=False,
+            conservation_threshold=float(args.conservation_threshold),
+            occupancy=float(args.occupancy)
+        )
+        oligo_comp.plot_differnece_graphs(
+            label_nodes=False,
+            label_edges=False,
+            conservation_threshold=float(args.conservation_threshold),
+            occupancy=float(args.occupancy))
 
     if args.inter_monomer:
         oligo_comp_inter = OligoComp(
@@ -1284,6 +1284,19 @@ def main():
             occupancy=float(args.occupancy),
             inter_monomer=True
         )
+
+        if args.no_label_plots:
+            oligo_comp_inter.plot_graphs(
+                label_nodes=False,
+                occupancy=float(args.occupancy),
+                inter_monomer=False
+            )
+            oligo_comp_inter.plot_graphs(
+                label_nodes=False,
+                occupancy=float(args.occupancy),
+                inter_monomer=True
+            )
+
 
 if __name__ == "__main__":
     main()
