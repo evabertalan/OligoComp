@@ -13,6 +13,7 @@ import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning, module="MDAnalysis.*")
 
 
+import pdb
 class OligoComp:
     def __init__(
         self,
@@ -93,6 +94,7 @@ class OligoComp:
         connected_component_root=None,
         occupancy=None,
         dont_save_graph_objects=False,
+        inter_monomer=False,
     ):
         self.distance = distance
         self.connected_component_root = connected_component_root
@@ -135,7 +137,8 @@ class OligoComp:
             )
             self.logger.info("This step takes some time...")
 
-            selection = f'(segid {segment}) and ({self.selection})'
+            selection = f'({self.selection})' if inter_monomer else f'(segid {segment}) and ({self.selection})'
+
             psf_file = self.graph_coord_objects[segment]['psf']
             dcd_files = self.graph_coord_objects[segment]['dcd']
 
@@ -159,7 +162,7 @@ class OligoComp:
             wba.set_water_wires(water_in_convex_hull=max_water, max_water=max_water)
             wba.compute_average_water_per_wire()
             if connected_component_root:
-                res_name, res_id = _hf.get_node_name_pats(connected_component_root)
+                seg_id, res_name, res_id = _hf.get_node_name_pats(connected_component_root)
                 root = f'{segment}-{res_name}-{res_id}'
                 if occupancy:
                     wba.filter_occupancy(occupancy)
@@ -170,6 +173,16 @@ class OligoComp:
             self.graph_coord_objects[segment].update({"graph": self.graph})
 
             u = _mda.Universe(psf_file, dcd_files)
+
+            if inter_monomer:
+                selection = f'({self.selection})'
+                self.multi_segments = [
+                    seg.segid for seg in u.select_atoms("protein").segments
+                ]
+            else:
+                selection = f'(segid {segment}) and ({self.selection})'
+                self.multi_segments = []
+
             selected_atoms = u.select_atoms(selection)
             self.graph_coord_objects[segment].update({"selected_atoms": selected_atoms})
 
@@ -255,7 +268,7 @@ class OligoComp:
                 n not in self.node_positions.keys()
                 or n.split("-")[1] in _hf.water_types
             ):
-                res_name, res_id = _hf.get_node_name_pats(n)
+                seg_id, res_name, res_id = _hf.get_node_name_pats(n)
                 coords = (
                     segment["selected_atoms"]
                     .select_atoms("resid " + res_id)
@@ -269,6 +282,10 @@ class OligoComp:
             return _hf.calculate_pca_positions(node_pos)
         else:
             return node_pos
+
+    def filter_inter_monomer(self, graph):
+        inter_monomer_edges = [(e1, e2) for e1, e2 in graph.edges() if e1.split('-')[0] != e2.split('-')[0]]
+        return graph.edge_subgraph(inter_monomer_edges).copy()
 
     def get_conserved_graph(self, conservation_threshold=0.9, occupancy=None, eps=1.5):
         self.logger.info(
@@ -354,6 +371,7 @@ class OligoComp:
         xlabel="PCA projected membrane plane",
         ylabel="Membrane normal (Å)",
         occupancy=None,
+        inter_monomer=False
     ):
         for segment in self.segments:
 
@@ -375,6 +393,11 @@ class OligoComp:
             node_pca_pos = self._get_node_positions(self.graph_coord_objects[segment])
             node_pca_pos = _hf.check_projection_sign(node_pca_pos, self.pca_positions)
 
+            inter_monomer_edges = []
+
+            if inter_monomer:
+                graph = self.filter_inter_monomer(graph)
+
             for e in graph.edges:
                 e0 = _hf.get_node_name(e[0])
                 e1 = _hf.get_node_name(e[1])
@@ -383,10 +406,16 @@ class OligoComp:
                     x = [edge_line[0][0], edge_line[1][0]]
                     y = [edge_line[0][1], edge_line[1][1]]
 
+                    if e0.split('-')[0] != e1.split('-')[0]:
+                        color = 'darkorange'  # 'darkorange'
+                        inter_monomer_edges.append(e)
+                    else:
+                        color = 'gray'  # self.plot_parameters["graph_color"],
+
                     ax.plot(
                         x,
                         y,
-                        color=self.plot_parameters["graph_color"],
+                        color=color,
                         marker="o",
                         linewidth=self.plot_parameters["edge_width"],
                         markersize=self.plot_parameters["node_size"] * 0.01,
@@ -414,7 +443,13 @@ class OligoComp:
                                 fontsize=self.plot_parameters["edge_label_size"],
                             )
 
+            markers = ["o", ",", "v", "p", "D", "*", "h", "H", "X"]
             for n in graph.nodes:
+                if self.multi_segments:
+                    marker_shape = markers[self.multi_segments.index(n.split("-")[0])]
+                else:
+                    marker_shape = "o"
+
                 n = _hf.get_node_name(n)
                 if n in node_pca_pos.keys():
                     values = node_pca_pos[n]
@@ -422,14 +457,16 @@ class OligoComp:
                         ax.scatter(
                             values[0],
                             values[1],
+                            marker=marker_shape,
                             color=self.plot_parameters["water_node_color"],
                             s=self.plot_parameters["node_size"] * 0.7,
                             zorder=5,
                         )
-                    elif n.split("-")[0] in _hf.amino_d.keys():
+                    elif n.split("-")[1] in _hf.amino_d.keys():
                         ax.scatter(
                             values[0],
                             values[1],
+                            marker=marker_shape,
                             color=self.plot_parameters["graph_color"],
                             s=self.plot_parameters["node_size"],
                             zorder=5,
@@ -439,6 +476,7 @@ class OligoComp:
                         ax.scatter(
                             values[0],
                             values[1],
+                            marker=marker_shape,
                             color=self.plot_parameters["non_prot_color"],
                             s=self.plot_parameters["node_size"],
                             zorder=5,
@@ -450,7 +488,7 @@ class OligoComp:
                     n = _hf.get_node_name(n)
                     if n in node_pca_pos.keys():
                         values = node_pca_pos[n]
-                        res_name, res_id = _hf.get_node_name_pats(n)
+                        seg_id, res_name, res_id = _hf.get_node_name_pats(n)
                         if res_name in _hf.water_types:
                             pass  # temporary turn off water labels
                             # ax.annotate(
@@ -460,25 +498,25 @@ class OligoComp:
                             # )
                         elif res_name in _hf.amino_d.keys():
                             res_label = (
-                                f"{segment}-{_hf.amino_d[res_name]}{res_id}"
+                                f"{seg_id}-{_hf.amino_d[res_name]}{res_id}"
                                 if self.plot_parameters["show_chain_label"]
                                 else f"{_hf.amino_d[res_name]}{res_id}"
                             )
 
                             ax.annotate(
                                 res_label,
-                                (values[0] + 0.2, values[1] - 0.26),
+                                (values[0] + 0.26, values[1] - 0.26),
                                 fontsize=self.plot_parameters["node_label_size"],
                             )
                         else:
                             res_label = (
-                                f"{segment}-{res_name}{res_id}"
+                                f"{seg_id}-{res_name}{res_id}"
                                 if self.plot_parameters["show_chain_label"]
                                 else f"{res_name}{res_id}"
                             )
                             ax.annotate(
                                 res_label,
-                                (values[0] + 0.2, values[1] - 0.25),
+                                (values[0] + 0.26, values[1] - 0.25),
                                 fontsize=self.plot_parameters["node_label_size"],
                                 color=self.plot_parameters["non_prot_color"],
                             )
@@ -514,6 +552,26 @@ class OligoComp:
                     ),
                     format=form,
                     dpi=self.plot_parameters["plot_resolution"],
+                )
+            if len(inter_monomer_edges):
+                _hf.write_text_file(
+                    Path(
+                        plot_folder,
+                        f"{segment}{root}{waters}{occ}_inter_monomer_edges.txt",
+                    ),
+                    [
+                        f"Water wire graph of {segment}",
+                        f"\nSelection string: {self.selection[0:-15]}",
+                        f"\nNumber of maximum water molecules allowed in the bridge: {self.max_water}",
+                        (
+                            f"\nMinimum H-bond occupancy: {occupancy}"
+                            if occupancy
+                            else ""
+                        ),
+                        "\n",
+                        f"\nNumber of inter monomer edges: {len(inter_monomer_edges)}"
+                        f"\nList of edges: {inter_monomer_edges}",
+                    ],
                 )
             if is_label:
                 _hf.write_text_file(
@@ -621,7 +679,7 @@ class OligoComp:
 
         if label_nodes:
             for node in self.conserved_nodes:
-                res_name, res_id = _hf.get_node_name_pats(node)
+                seg_id, res_name, res_id = _hf.get_node_name_pats(node)
                 if node in self.pca_positions.keys():
                     if (
                         res_name not in _hf.water_types
@@ -848,7 +906,7 @@ class OligoComp:
                         n = _hf.get_node_name(n)
                         if n in node_pca_pos.keys():
                             values = node_pca_pos[n]
-                            res_name, res_id = _hf.get_node_name_pats(n)
+                            seg_id, res_name, res_id = _hf.get_node_name_pats(n)
                             if res_name in _hf.water_types:
                                 pass  # ax.annotate(f'W{res_id}', (values[0]+0.2, values[1]-0.25), fontsize=self.plot_parameters['node_label_size'])
                             elif res_name in _hf.amino_d.keys():
@@ -1061,6 +1119,13 @@ def main():
         help="Don't save the metadata and full graph objects of the calculations. Use this flag if there is not enough space for the calculation results or when the graph objects are not needed for further calculations or analysis.",
     )
 
+    parser.add_argument(
+        "--inter_monomer",
+        default=True,
+        action="store_true",
+        help="Calculate and plot inter-monomer conserved interactions (default: True).",
+    )
+
     args = parser.parse_args()
 
     base = os.path.basename(args.psf)
@@ -1084,66 +1149,105 @@ def main():
     else:
         wrap_dcd = True
 
-    oligo_comp = OligoComp(
-        target_folder=output_folder,
-        psf_file=args.psf,
-        dcd_files=dcd_files,
-        segment_names=args.segment_names,
-        plot_parameters=ast.literal_eval(args.plot_parameters),
-        dont_save_graph_objects=args.dont_save_graph_objects,
-    )
-    oligo_comp.calculate_graphs(
-        max_water=int(args.max_water),
-        check_angle=True,
-        selection=args.selection,
-        additional_donors=ast.literal_eval(args.additional_donors),
-        additional_acceptors=ast.literal_eval(args.additional_acceptors),
-        residuewise=args.residuewise,
-        distance=args.distance,
-        cut_angle=args.cut_angle,
-        wrap_dcd=wrap_dcd,
-        step=args.step,
-        start=args.start,
-        stop=args.stop,
-        include_backbone_sidechain=args.include_backbone,
-        connected_component_root=args.root,
-        occupancy=float(args.occupancy),
-        dont_save_graph_objects=args.dont_save_graph_objects,
-    )
-    oligo_comp.plot_graphs(
-        label_nodes=True,
-        occupancy=float(args.occupancy),
-    )
+    # oligo_comp = OligoComp(
+    #     target_folder=output_folder,
+    #     psf_file=args.psf,
+    #     dcd_files=dcd_files,
+    #     segment_names=args.segment_names,
+    #     plot_parameters=ast.literal_eval(args.plot_parameters),
+    #     dont_save_graph_objects=args.dont_save_graph_objects,
+    # )
+    # oligo_comp.calculate_graphs(
+    #     max_water=int(args.max_water),
+    #     check_angle=True,
+    #     selection=args.selection,
+    #     additional_donors=ast.literal_eval(args.additional_donors),
+    #     additional_acceptors=ast.literal_eval(args.additional_acceptors),
+    #     residuewise=args.residuewise,
+    #     distance=args.distance,
+    #     cut_angle=args.cut_angle,
+    #     wrap_dcd=wrap_dcd,
+    #     step=args.step,
+    #     start=args.start,
+    #     stop=args.stop,
+    #     include_backbone_sidechain=args.include_backbone,
+    #     connected_component_root=args.root,
+    #     occupancy=float(args.occupancy),
+    #     dont_save_graph_objects=args.dont_save_graph_objects,
+    # )
+    # oligo_comp.plot_graphs(
+    #     label_nodes=True,
+    #     occupancy=float(args.occupancy),
+    # )
 
-    oligo_comp.plot_conserved_graph(
-        label_nodes=True,
-        conservation_threshold=float(args.conservation_threshold),
-        occupancy=float(args.occupancy)
-    )
-    oligo_comp.plot_differnece_graphs(
-        label_nodes=True,
-        conservation_threshold=float(args.conservation_threshold),
-        occupancy=float(args.occupancy))
+    # oligo_comp.plot_conserved_graph(
+    #     label_nodes=True,
+    #     conservation_threshold=float(args.conservation_threshold),
+    #     occupancy=float(args.occupancy)
+    # )
+    # oligo_comp.plot_differnece_graphs(
+    #     label_nodes=True,
+    #     conservation_threshold=float(args.conservation_threshold),
+    #     occupancy=float(args.occupancy))
 
-    if args.no_label_plots:
-        oligo_comp.plot_graphs(
-            label_nodes=False,
-            label_edges=False,
+    # if args.no_label_plots:
+    #     oligo_comp.plot_graphs(
+    #         label_nodes=False,
+    #         label_edges=False,
+    #         occupancy=float(args.occupancy),
+    #     )
+
+    #     oligo_comp.plot_conserved_graph(
+    #         label_nodes=False,
+    #         label_edges=False,
+    #         conservation_threshold=float(args.conservation_threshold),
+    #         occupancy=float(args.occupancy)
+    #     )
+    #     oligo_comp.plot_differnece_graphs(
+    #         label_nodes=False,
+    #         label_edges=False,
+    #         conservation_threshold=float(args.conservation_threshold),
+    #         occupancy=float(args.occupancy))
+
+    if args.inter_monomer:
+        oligo_comp_inter = OligoComp(
+            target_folder=output_folder,
+            psf_file=args.psf,
+            dcd_files=dcd_files,
+            segment_names=['inter_monomer'],
+            plot_parameters=ast.literal_eval(args.plot_parameters),
+            dont_save_graph_objects=args.dont_save_graph_objects,
+        )
+
+        oligo_comp_inter.calculate_graphs(
+            max_water=int(args.max_water),
+            check_angle=True,
+            selection=args.selection,
+            additional_donors=ast.literal_eval(args.additional_donors),
+            additional_acceptors=ast.literal_eval(args.additional_acceptors),
+            residuewise=args.residuewise,
+            distance=args.distance,
+            cut_angle=args.cut_angle,
+            wrap_dcd=wrap_dcd,
+            step=args.step,
+            start=args.start,
+            stop=args.stop,
+            include_backbone_sidechain=args.include_backbone,
+            # connected_component_root=args.root,
             occupancy=float(args.occupancy),
+            dont_save_graph_objects=args.dont_save_graph_objects,
+            inter_monomer=args.inter_monomer
         )
-
-        oligo_comp.plot_conserved_graph(
-            label_nodes=False,
-            label_edges=False,
-            conservation_threshold=float(args.conservation_threshold),
-            occupancy=float(args.occupancy)
+        oligo_comp_inter.plot_graphs(
+            label_nodes=True,
+            occupancy=float(args.occupancy),
+            inter_monomer=False
         )
-        oligo_comp.plot_differnece_graphs(
-            label_nodes=False,
-            label_edges=False,
-            conservation_threshold=float(args.conservation_threshold),
-            occupancy=float(args.occupancy))
-
+        oligo_comp_inter.plot_graphs(
+            label_nodes=True,
+            occupancy=float(args.occupancy),
+            inter_monomer=True
+        )
 
 if __name__ == "__main__":
     main()
