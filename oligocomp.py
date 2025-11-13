@@ -287,6 +287,24 @@ class OligoComp:
         inter_monomer_edges = [(e1, e2) for e1, e2 in graph.edges() if e1.split('-')[0] != e2.split('-')[0]]
         return graph.edge_subgraph(inter_monomer_edges).copy()
 
+    def find_conserved_inter_monomer_edges(self, graph):
+        graph = self.filter_inter_monomer(graph)
+        inter_monomer_edges = []
+        monomers = []
+        for edge in graph.edges:
+            monomers.append(_hf.get_node_name(edge[0]).split('-')[0])
+            monomers.append(_hf.get_node_name(edge[1]).split('-')[0])
+
+            e0 = ('-').join(_hf.get_node_name(edge[0]).split('-')[1:])
+            e1 = ('-').join(_hf.get_node_name(edge[1]).split('-')[1:])
+
+            inter_monomer_edges.append(sorted((e0, e1)))
+
+        u_monomers = np.unique(monomers)
+        u_edges, c_edges = np.unique(inter_monomer_edges, axis=0, return_counts=True)
+        conserved_inter_monomer_edges = u_edges[np.where(c_edges == len(u_monomers))[0]]
+        return conserved_inter_monomer_edges
+
     def get_conserved_graph(self, conservation_threshold=0.9, occupancy=None, eps=1.5):
         self.logger.info(
             "Conservation threshold across structures is set to: "
@@ -394,9 +412,13 @@ class OligoComp:
             node_pca_pos = _hf.check_projection_sign(node_pca_pos, self.pca_positions)
 
             inter_monomer_edges = []
+            conserved_inter_monomer_edges = []
+            unique_inter_monomer_edges = []
+            conserved_inter_monomer_edges = self.find_conserved_inter_monomer_edges(graph)
 
             if inter_monomer:
                 graph = self.filter_inter_monomer(graph)
+                self.plot_parameters["show_chain_label"] = True
 
             for e in graph.edges:
                 e0 = _hf.get_node_name(e[0])
@@ -406,11 +428,18 @@ class OligoComp:
                     x = [edge_line[0][0], edge_line[1][0]]
                     y = [edge_line[0][1], edge_line[1][1]]
 
-                    if e0.split('-')[0] != e1.split('-')[0]:
+                    sorted_e_pair_no_segid = sorted((('-').join(_hf.get_node_name(e[0]).split('-')[1:]), ('-').join(_hf.get_node_name(e[1]).split('-')[1:])))
+
+                    if np.any(np.all(sorted_e_pair_no_segid == conserved_inter_monomer_edges, axis=1)):
+                        color = 'blue'
+                        inter_monomer_edges.append(e)
+
+                    elif e0.split('-')[0] != e1.split('-')[0]:
                         color = 'darkorange'  # 'darkorange'
                         inter_monomer_edges.append(e)
+                        unique_inter_monomer_edges.append(e)
                     else:
-                        color = 'gray'  # self.plot_parameters["graph_color"],
+                        color = 'lightgray'  # self.plot_parameters["graph_color"],
 
                     ax.plot(
                         x,
@@ -530,6 +559,8 @@ class OligoComp:
                 else ""
             )
 
+            inter_monomer = '_inter_monomer' if inter_monomer else ''
+
             if self.connected_component_root:
                 plot_folder = _hf.create_directory(
                     Path(self.workfolder, f"{self.max_water}_water_wires_connected_components", self.connected_component_root, segment)
@@ -548,7 +579,7 @@ class OligoComp:
                 plt.savefig(
                     Path(
                         plot_folder,
-                        f"{segment}{root}{waters}{occ}_graph{is_backbone}{is_label}.{form}",
+                        f"{segment}{root}{waters}{occ}_graph{is_backbone}{inter_monomer}{is_label}.{form}",
                     ),
                     format=form,
                     dpi=self.plot_parameters["plot_resolution"],
@@ -570,7 +601,12 @@ class OligoComp:
                         ),
                         "\n",
                         f"\nNumber of inter monomer edges: {len(inter_monomer_edges)}"
-                        f"\nList of edges: {inter_monomer_edges}",
+                        f"\nList of edges: {sorted(inter_monomer_edges)}",
+                        "\n",
+                        f"\nNumber of conserved inter monomer edges: {len(conserved_inter_monomer_edges)}",
+                        f"\nList of conserved inter monomer edges: {conserved_inter_monomer_edges}",
+                        "\n",
+                        f"\nList of NOT conserved inter monomer edges: {unique_inter_monomer_edges}",
                     ],
                 )
             if is_label:

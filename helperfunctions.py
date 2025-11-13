@@ -83,7 +83,7 @@ def get_plot_parameters(plot_parameters):
         "non_prot_color": (
             plot_parameters["non_prot_color"]
             if "non_prot_color" in plot_parameters.keys()
-            else "blue"
+            else "green"
         ),
         "plot_title_fontsize": (
             plot_parameters["plot_title_fontsize"]
