@@ -32,6 +32,7 @@ from scipy.sparse.csgraph import dijkstra
 from collections import OrderedDict as _odict
 from matplotlib.ticker import MaxNLocator
 import warnings
+import pandas as pd
 
 warnings.filterwarnings("ignore", category=DeprecationWarning, module="MDAnalysis.*")
 
@@ -322,6 +323,8 @@ class WireAnalysis(NetworkAnalysis):
         this_frame_table = {}
         no_direct_bonds = False
         self._allow_direct_bonds = allow_direct_bonds
+
+        angles_per_frame = []
         for ts in self._universe.trajectory[self._trajectory_slice]:
 
             water_coordinates = self._water.positions
@@ -398,13 +401,18 @@ class WireAnalysis(NetworkAnalysis):
 
             if self.check_angle:
                 all_coordinates = _np.vstack((selection_coordinates, water_coordinates))
-                da_hbonds = _hf.check_angle(
+                da_hbonds, angle_data = _hf.check_angle(
                     da_pairs,
                     self.heavy2hydrogen,
                     all_coordinates,
                     hydrogen_coordinates,
                     self.cut_angle,
+                    self._da_selection
                 )
+                frame_angles = dict(zip(angle_data["pair_names"], angle_data["angles"]))
+                angles_per_frame.append(frame_angles)
+
+
                 if water_pairs.size > 0:
                     water_hbonds = _hf.check_angle_water(
                         water_pairs,
@@ -415,7 +423,7 @@ class WireAnalysis(NetworkAnalysis):
                 else:
                     water_hbonds = _np.array([])
                 if local_pairs.size > 0:
-                    local_hbonds = _hf.check_angle(
+                    local_hbonds, _ = _hf.check_angle(
                         local_pairs,
                         self.heavy2hydrogen,
                         all_coordinates,
@@ -516,12 +524,18 @@ class WireAnalysis(NetworkAnalysis):
                         intervals_results[wire_info][frame_count] = -1
 
             frame_count += 1
+
+
         self._set_results({key: results[key] != _np.inf for key in results})
         self.wire_lengths = results
         self.hashs = intervals_results
         self.hash_table = this_frame_table
         self.occupancy_dict = {}
         self.first_frame_dict = {}
+        if angles_per_frame:
+            df = pd.DataFrame(angles_per_frame).round(1)
+            return df
+        return None
 
     def set_explicit_water_wires(
         self, max_water=5, allow_direct_bonds=True, water_in_convex_hull=False

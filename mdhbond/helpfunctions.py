@@ -245,12 +245,17 @@ def dict2graph(bonds, residuewise=True):
     return g
 
 
+def _mdsel_to_resname(atom):
+    return f'{atom.segid}-{atom.resname}-{atom.resid}-{atom.name}'
+
+
 def check_angle(
     atoms_in_distance,
     heavy2hydrogen,
     local_coordinates,
     hydrogen_coordinates,
     cut_angle,
+    sel=None
 ):
     pairs = np.asarray(atoms_in_distance)
     angle_check_index = []
@@ -273,7 +278,20 @@ def check_angle(
     angle_check_index = np.array(angle_check_index)
     bond_index = np.asarray(angle_check_index[angle_check.flatten()], dtype=np.int)
     hbond_pairs = pairs[bond_index]
-    return hbond_pairs
+
+    if sel:
+        pair_names = [f'{_mdsel_to_resname(sel[p[0]])}_{_mdsel_to_resname(sel[p[1]])}' for p in pairs[angle_check_index]]
+        angle_data = {'pair_names': pair_names, 'angle_deviation': angles, 'angles': 180 - angles}
+    else:
+        angle_data = None
+
+        # # keep for testing
+        # df = pd.DataFrame(data=angle_data)
+        # df[["angle_deviation", "angles"]] = df[["angle_deviation", "angles"]].round(3)
+
+        # df.to_csv('/Users/evabertalan/Documents/projects/oligo_comp/test_files/write_angles/ANGLES.csv')
+
+    return hbond_pairs, angle_data
 
 
 def check_angle_water(

@@ -96,6 +96,7 @@ class OligoComp:
         occupancy=None,
         dont_save_graph_objects=False,
         inter_monomer=False,
+        collect_angles=False
     ):
         self.distance = distance
         self.connected_component_root = connected_component_root
@@ -160,7 +161,8 @@ class OligoComp:
                 stop=stop,
             )
 
-            wba.set_water_wires(water_in_convex_hull=max_water, max_water=max_water)
+            angles_per_frame = wba.set_water_wires(water_in_convex_hull=max_water, max_water=max_water)
+
             wba.compute_average_water_per_wire()
             if connected_component_root:
                 seg_id, res_name, res_id = _hf.get_node_name_pats(connected_component_root)
@@ -195,6 +197,9 @@ class OligoComp:
                 plot_folder = _hf.create_directory(
                     Path(self.workfolder, f"{self.max_water}_water_wires", segment)
                 )
+
+            if collect_angles:
+                angles_per_frame.to_csv(Path(plot_folder, f"{segment}_angles.csv")),
 
             df = pd.DataFrame.from_dict(
                 _hf.edge_info(wba, self.graph.edges), orient="index"
@@ -1169,6 +1174,13 @@ def main():
         help="Calculate and plot inter-monomer conserved interactions (default: True).",
     )
 
+    parser.add_argument(
+        "--collect_angles",
+        default=False,
+        action="store_true",
+        help="Create a csv file with the angles of all donor-acceptor pairs that are within the set H-bond distance criterion in each frame (default: False).",
+    )
+
     args = parser.parse_args()
 
     base = os.path.basename(args.psf)
@@ -1217,6 +1229,7 @@ def main():
         connected_component_root=args.root,
         occupancy=float(args.occupancy),
         dont_save_graph_objects=args.dont_save_graph_objects,
+        collect_angles=args.collect_angles
     )
     oligo_comp.plot_graphs(
         label_nodes=True,
