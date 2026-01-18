@@ -200,13 +200,20 @@ class OligoComp:
                 _hf.edge_info(wba, self.graph.edges), orient="index"
             ).reset_index()
             df.columns = ["edge", "water", "occupancy"]
+            df['edge'] = df['edge'].str.replace(':', '_')
 
             waters = f"_max_{self.max_water}_water_bridges"
             df.to_csv(
-                Path(plot_folder, f"{segment}{waters}_water_occupancy_edge_info.txt"),
+                Path(plot_folder, f"{segment}{waters}_water_occupancy_all_edge_info.txt"),
                 sep="\t",
                 index=False,
             )
+            if occupancy:
+                df[df['occupancy'] >= occupancy].to_csv(
+                    Path(plot_folder, f"{segment}{waters}_water_{occupancy}_occupancy_edge_info.txt"),
+                    sep="\t",
+                    index=False,
+                )
 
             if not dont_save_graph_objects:
                 if connected_component_root:
@@ -306,7 +313,7 @@ class OligoComp:
         conserved_inter_monomer_edges = u_edges[np.where(c_edges == len(u_monomers))[0]]
         return conserved_inter_monomer_edges
 
-    def get_conserved_graph(self, conservation_threshold=0.9, occupancy=None, eps=1.5):
+    def get_conserved_graph(self, conservation_threshold=1, occupancy=None, eps=1.5):
         self.logger.info(
             "Conservation threshold across structures is set to: "
             + str(conservation_threshold * 100)
@@ -792,9 +799,7 @@ class OligoComp:
                 [
                     "Conserved water wire graph of "
                     + str(len(self.graph_coord_objects.keys()))
-                    + str(
-                        " PDB structures" if not self.occupancy else " simulations"
-                    ),
+                    + str(" monomers"),
                     "\nSelection string: " + str(self.selection[0:-15]),
                     "\nNumber of maximum water molecules allowed in the bridge: "
                     + str(self.max_water),
