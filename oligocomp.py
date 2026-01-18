@@ -55,6 +55,7 @@ class OligoComp:
                 "dcd": self.dcd_files,
             }
 
+        self.inter_monomer = (segment_names == ['inter_monomer'])
         self.graph_type = "water_wire"
 
     def _add_node_positions_from_structure(self, selected_atoms, graph, residuewise):
@@ -263,12 +264,12 @@ class OligoComp:
     def _get_node_positions(self, segment, pca=True):
         node_pos = {}
         for node in segment["graph"].nodes:
-            n = _hf.get_node_name(node)
+            n = _hf.get_node_name(node, with_segid=self.inter_monomer)
             if (
                 n not in self.node_positions.keys()
                 or n.split("-")[1] in _hf.water_types
             ):
-                seg_id, res_name, res_id = _hf.get_node_name_pats(n)
+                seg_id, res_name, res_id = _hf.get_node_name_pats(n, with_segid=self.inter_monomer)
                 coords = (
                     segment["selected_atoms"]
                     .select_atoms("resid " + res_id)
@@ -292,11 +293,11 @@ class OligoComp:
         inter_monomer_edges = []
         monomers = []
         for edge in graph.edges:
-            monomers.append(_hf.get_node_name(edge[0]).split('-')[0])
-            monomers.append(_hf.get_node_name(edge[1]).split('-')[0])
+            monomers.append(_hf.get_node_name(edge[0], with_segid=self.inter_monomer).split('-')[0])
+            monomers.append(_hf.get_node_name(edge[1], with_segid=self.inter_monomer).split('-')[0])
 
-            e0 = ('-').join(_hf.get_node_name(edge[0]).split('-')[1:])
-            e1 = ('-').join(_hf.get_node_name(edge[1]).split('-')[1:])
+            e0 = ('-').join(_hf.get_node_name(edge[0], with_segid=self.inter_monomer).split('-')[1:])
+            e1 = ('-').join(_hf.get_node_name(edge[1], with_segid=self.inter_monomer).split('-')[1:])
 
             inter_monomer_edges.append(sorted((e0, e1)))
 
@@ -421,20 +422,20 @@ class OligoComp:
                 self.plot_parameters["show_chain_label"] = True
 
             for e in graph.edges:
-                e0 = _hf.get_node_name(e[0])
-                e1 = _hf.get_node_name(e[1])
+                e0 = _hf.get_node_name(e[0], with_segid=self.inter_monomer)
+                e1 = _hf.get_node_name(e[1], with_segid=self.inter_monomer)
                 if e0 in node_pca_pos.keys() and e1 in node_pca_pos.keys():
                     edge_line = [node_pca_pos[e0], node_pca_pos[e1]]
                     x = [edge_line[0][0], edge_line[1][0]]
                     y = [edge_line[0][1], edge_line[1][1]]
 
-                    sorted_e_pair_no_segid = sorted((('-').join(_hf.get_node_name(e[0]).split('-')[1:]), ('-').join(_hf.get_node_name(e[1]).split('-')[1:])))
+                    sorted_e_pair_no_segid = sorted((('-').join(_hf.get_node_name(e[0], with_segid=self.inter_monomer).split('-')[1:]), ('-').join(_hf.get_node_name(e[1], with_segid=self.inter_monomer).split('-')[1:])))
 
-                    if len(conserved_inter_monomer_edges) and np.any(np.all(sorted_e_pair_no_segid == conserved_inter_monomer_edges, axis=1)):
+                    if self.inter_monomer and len(conserved_inter_monomer_edges) and np.any(np.all(sorted_e_pair_no_segid == conserved_inter_monomer_edges, axis=1)):
                         color = 'blue'
                         inter_monomer_edges.append(e)
 
-                    elif e0.split('-')[0] != e1.split('-')[0]:
+                    elif self.inter_monomer and e0.split('-')[0] != e1.split('-')[0]:
                         color = 'darkorange'  # 'darkorange'
                         inter_monomer_edges.append(e)
                         unique_inter_monomer_edges.append(e)
@@ -479,10 +480,11 @@ class OligoComp:
                 else:
                     marker_shape = "o"
 
-                n = _hf.get_node_name(n)
+                n = _hf.get_node_name(n, with_segid=self.inter_monomer)
                 if n in node_pca_pos.keys():
                     values = node_pca_pos[n]
-                    if n.split("-")[0] in _hf.water_types:
+                    segid, res_name, res_id = _hf.get_node_name_pats(n, with_segid=self.inter_monomer)
+                    if res_name in _hf.water_types:
                         ax.scatter(
                             values[0],
                             values[1],
@@ -491,7 +493,7 @@ class OligoComp:
                             s=self.plot_parameters["node_size"] * 0.7,
                             zorder=5,
                         )
-                    elif n.split("-")[1] in _hf.amino_d.keys():
+                    elif res_name in _hf.amino_d.keys():
                         ax.scatter(
                             values[0],
                             values[1],
@@ -514,10 +516,10 @@ class OligoComp:
 
             if label_nodes:
                 for n in graph.nodes:
-                    n = _hf.get_node_name(n)
+                    n = _hf.get_node_name(n, with_segid=self.inter_monomer)
                     if n in node_pca_pos.keys():
                         values = node_pca_pos[n]
-                        seg_id, res_name, res_id = _hf.get_node_name_pats(n)
+                        seg_id, res_name, res_id = _hf.get_node_name_pats(n,  with_segid=self.inter_monomer)
                         if res_name in _hf.water_types:
                             pass  # temporary turn off water labels
                             # ax.annotate(
@@ -584,7 +586,7 @@ class OligoComp:
                     format=form,
                     dpi=self.plot_parameters["plot_resolution"],
                 )
-            if len(inter_monomer_edges):
+            if self.inter_monomer and len(inter_monomer_edges):
                 _hf.write_text_file(
                     Path(
                         plot_folder,
@@ -715,7 +717,7 @@ class OligoComp:
 
         if label_nodes:
             for node in self.conserved_nodes:
-                seg_id, res_name, res_id = _hf.get_node_name_pats(node)
+                seg_id, res_name, res_id = _hf.get_node_name_pats(node, with_segid=self.inter_monomer)
                 if node in self.pca_positions.keys():
                     if (
                         res_name not in _hf.water_types
