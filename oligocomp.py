@@ -199,7 +199,8 @@ class OligoComp:
                 )
 
             if collect_angles:
-                angles_per_frame.to_csv(Path(plot_folder, f"{segment}_angles.csv")),
+                no_self_pair = [col for col in angles_per_frame.columns if not col.split('_')[0].split("-")[:3] == col.split('_')[1].split("-")[:3]]
+                angles_per_frame[no_self_pair].to_csv(Path(plot_folder, f"{segment}_angles.csv"), index=False),
 
             df = pd.DataFrame.from_dict(
                 _hf.edge_info(wba, self.graph.edges), orient="index"

@@ -407,28 +407,35 @@ class WireAnalysis(NetworkAnalysis):
                     all_coordinates,
                     hydrogen_coordinates,
                     self.cut_angle,
-                    self._da_selection
+                    self._da_selection,
                 )
-                frame_angles = dict(zip(angle_data["pair_names"], angle_data["angles"]))
-                angles_per_frame.append(frame_angles)
-
 
                 if water_pairs.size > 0:
-                    water_hbonds = _hf.check_angle_water(
+                    water_hbonds, angle_data_water = _hf.check_angle_water(
                         water_pairs,
                         water_coordinates,
                         hydrogen_coordinates[self._first_water_hydrogen_id :],
                         self.cut_angle,
+                        self._water,
+                    )
+                    angle_data["pair_names"] += angle_data_water["pair_names"]
+                    angle_data["angles"] = list(angle_data["angles"]) + list(
+                        angle_data_water["angles"]
                     )
                 else:
                     water_hbonds = _np.array([])
                 if local_pairs.size > 0:
-                    local_hbonds, _ = _hf.check_angle(
+                    local_hbonds, angle_data_local = _hf.check_angle(
                         local_pairs,
                         self.heavy2hydrogen,
                         all_coordinates,
                         hydrogen_coordinates,
                         self.cut_angle,
+                        (self._da_selection + self._water).unique,
+                    )
+                    angle_data["pair_names"] += angle_data_local["pair_names"]
+                    angle_data["angles"] = angle_data["angles"] + list(
+                        angle_data_local["angles"]
                     )
                 else:
                     local_hbonds = _np.array([])
@@ -437,6 +444,8 @@ class WireAnalysis(NetworkAnalysis):
                 water_hbonds = water_pairs
                 local_hbonds = local_pairs
 
+            frame_angles = dict(zip(angle_data["pair_names"], angle_data["angles"]))
+            angles_per_frame.append(frame_angles)
             da_hbonds = _np.sort(da_hbonds)
             water_hbonds = _np.sort(water_hbonds) + self._first_water_id
 
@@ -524,7 +533,6 @@ class WireAnalysis(NetworkAnalysis):
                         intervals_results[wire_info][frame_count] = -1
 
             frame_count += 1
-
 
         self._set_results({key: results[key] != _np.inf for key in results})
         self.wire_lengths = results
