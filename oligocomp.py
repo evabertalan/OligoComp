@@ -93,6 +93,7 @@ class OligoComp:
         residuewise=True,
         wrap_dcd=False,
         connected_component_root=None,
+        path=(),
         occupancy=None,
         dont_save_graph_objects=False,
         inter_monomer=False,
@@ -100,6 +101,7 @@ class OligoComp:
     ):
         self.distance = distance
         self.connected_component_root = connected_component_root
+        self.path = path
         self.logger.info(f"H-bond criteria cut off distance: {self.distance} A")
 
         self.include_backbone_sidechain = include_backbone_sidechain
@@ -165,11 +167,24 @@ class OligoComp:
 
             wba.compute_average_water_per_wire()
             if connected_component_root:
+                self.logger.info(f"Performing connected component search from root: {connected_component_root}")
                 seg_id, res_name, res_id = _hf.get_node_name_pats(connected_component_root)
                 root = f'{segment}-{res_name}-{res_id}'
                 if occupancy:
                     wba.filter_occupancy(occupancy)
                 wba.filter_connected_component(root)
+
+            elif path:
+                self.logger.info(f"Performing path search between start {path[0]} and goal {path[1]}.")
+                seg_id, res_name, res_id = _hf.get_node_name_pats(path[0])
+                start_node = f'{segment}-{res_name}-{res_id}'
+
+                seg_id, res_name, res_id = _hf.get_node_name_pats(path[1])
+                goal_node = f'{segment}-{res_name}-{res_id}'
+                if occupancy:
+                    wba.filter_occupancy(occupancy)
+                wba.filter_all_paths(start_node, goal_node)
+
             self.graph_coord_objects[segment].update({"wba": wba})
 
             self.graph = wba.filtered_graph
@@ -193,6 +208,11 @@ class OligoComp:
                 plot_folder = _hf.create_directory(
                     Path(self.workfolder, f"{self.max_water}_water_wires_connected_components", self.connected_component_root, segment)
                 )
+            elif self.path:
+                path_name = f'{path[0]}-{path[1]}'
+                plot_folder = _hf.create_directory(
+                    Path(self.workfolder, f"{self.max_water}_water_wires_path", path_name, segment)
+                )
             else:
                 plot_folder = _hf.create_directory(
                     Path(self.workfolder, f"{self.max_water}_water_wires", segment)
@@ -207,31 +227,45 @@ class OligoComp:
             ).reset_index()
             df.columns = ["edge", "water", "occupancy"]
             df['edge'] = df['edge'].str.replace(':', '_')
+            root = (f"_{self.connected_component_root}" if self.connected_component_root else "")
+            path_name = f'_path_{self.path[0]}-{self.path[1]}' if self.path else ""
 
             waters = f"_max_{self.max_water}_water_bridges"
             df.to_csv(
-                Path(plot_folder, f"{segment}{waters}_water_occupancy_all_edge_info.txt"),
+                Path(plot_folder, f"{segment}{waters}{root}{path_name}_water_occupancy_all_edge_info.txt"),
                 sep="\t",
                 index=False,
             )
             if occupancy:
                 df[df['occupancy'] >= occupancy].to_csv(
-                    Path(plot_folder, f"{segment}{waters}_water_{occupancy}_occupancy_edge_info.txt"),
+                    Path(plot_folder, f"{segment}{waters}{root}{path_name}_water_{occupancy}_occupancy_edge_info.txt"),
                     sep="\t",
                     index=False,
                 )
 
             if not dont_save_graph_objects:
-                if connected_component_root:
+                if self.connected_component_root:
                     root = f"_{self.connected_component_root}_"
+                    path_name = ""
                     self.water_graphs_folder = _hf.create_directory(
                         Path(
                             self.graph_object_folder,
                             f"{self.max_water}_water_wires_connected_components",
                         )
                     )
+                elif self.path:
+                    path_name = f'{path[0]}-{path[1]}'
+                    root = ""
+                    self.water_graphs_folder = _hf.create_directory(
+                        Path(
+                            self.graph_object_folder,
+                            f"{self.max_water}_water_wires_path",
+                        )
+                    )
+
                 else:
                     root = ""
+                    path_name = ""
                     self.water_graphs_folder = _hf.create_directory(
                         Path(self.graph_object_folder, f"{self.max_water}_water_wires")
                     )
@@ -239,14 +273,14 @@ class OligoComp:
                 wba.dump_to_file(
                     Path(
                         self.water_graphs_folder,
-                        f"{segment}{root}{self.max_water}_water_wires_graph.pickle",
+                        f"{segment}{root}{path_name}{self.max_water}_water_wires_graph.pickle",
                     )
                 )
 
                 _hf.pickle_write_file(
                     Path(
                         self.helper_files_folder,
-                        f"{segment}{root}{self.max_water}_water_nx_graphs.pickle",
+                        f"{segment}{root}{path_name}{self.max_water}_water_nx_graphs.pickle",
                     ),
                     self.graph,
                 )
@@ -254,14 +288,14 @@ class OligoComp:
                 _hf.json_write_file(
                     Path(
                         self.helper_files_folder,
-                        f"{segment}{root}{self.max_water}_water_graph_edge_info.json",
+                        f"{segment}{root}{path_name}{self.max_water}_water_graph_edge_info.json",
                     ),
                     _hf.edge_info(wba, self.graph.edges),
                 )
 
                 graph_coord_object_loc = Path(
                     self.helper_files_folder,
-                    f"{segment}{root}{self.max_water}_water_wires_coord_objects.pickle",
+                    f"{segment}{root}{path_name}{self.max_water}_water_wires_coord_objects.pickle",
                 )
                 _hf.pickle_write_file(
                     graph_coord_object_loc,
@@ -580,6 +614,10 @@ class OligoComp:
                 plot_folder = _hf.create_directory(
                     Path(self.workfolder, f"{self.max_water}_water_wires_connected_components", self.connected_component_root, segment)
                 )
+            elif self.path:
+                plot_folder = _hf.create_directory(
+                    Path(self.workfolder, f"{self.max_water}_water_wires_path", f'{self.path[0]}-{self.path[1]}', segment)
+                )
             else:
                 plot_folder = _hf.create_directory(
                     Path(self.workfolder, f"{self.max_water}_water_wires", segment)
@@ -588,13 +626,14 @@ class OligoComp:
             waters = f"_max_{self.max_water}_water_bridges"
             occ = f"_min_occupancy_{occupancy}" if occupancy else ""
             root = (
-                f"_{self.connected_component_root}" if self.connected_component_root else ""
+                f"_cc_{self.connected_component_root}" if self.connected_component_root else ""
             )
+            path_name = f'_path_{self.path[0]}-{self.path[1]}' if self.path else ""
             for form in self.plot_parameters["formats"]:
                 plt.savefig(
                     Path(
                         plot_folder,
-                        f"{segment}{root}{waters}{occ}_graph{is_backbone}{inter_monomer}{is_label}.{form}",
+                        f"{segment}{root}{path_name}{waters}{occ}_graph{is_backbone}{inter_monomer}{is_label}.{form}",
                     ),
                     format=form,
                     dpi=self.plot_parameters["plot_resolution"],
@@ -603,7 +642,7 @@ class OligoComp:
                 _hf.write_text_file(
                     Path(
                         plot_folder,
-                        f"{segment}{root}{waters}{occ}_inter_monomer_edges.txt",
+                        f"{segment}{root}{path_name}{waters}{occ}_inter_monomer_edges.txt",
                     ),
                     [
                         f"Water wire graph of {segment}",
@@ -614,6 +653,8 @@ class OligoComp:
                             if occupancy
                             else ""
                         ),
+                        (f"\nConnected component from root node {root}" if root else ""),
+                        (f"\nPath search between {self.path[0]} and {self.path[1]}" if self.path else ""),
                         "\n",
                         f"\nNumber of inter monomer edges: {len(inter_monomer_edges)}"
                         f"\nList of edges: {sorted(inter_monomer_edges)}",
@@ -628,7 +669,7 @@ class OligoComp:
                 _hf.write_text_file(
                     Path(
                         plot_folder,
-                        f"{segment}{root}{waters}{occ}_water_wire_graph_info.txt",
+                        f"{segment}{root}{path_name}{waters}{occ}_water_wire_graph_info.txt",
                     ),
                     [
                         "Water wire graph of " + segment,
@@ -640,6 +681,8 @@ class OligoComp:
                             if occupancy
                             else ""
                         ),
+                        (f"\nConnected component from root node {root}" if root else ""),
+                        (f"\nPath search between {self.path[0]} and {self.path[1]}" if self.path else ""),
                         "\n",
                         "\nNumber of nodes in "
                         + segment
@@ -782,6 +825,10 @@ class OligoComp:
             plot_folder = _hf.create_directory(
                 Path(self.workfolder, f"{self.max_water}_water_wires_connected_components", self.connected_component_root)
             )
+        elif self.path:
+            plot_folder = _hf.create_directory(
+                Path(self.workfolder, f"{self.max_water}_water_wires_path", f'{self.path[0]}-{self.path[1]}')
+            )
         else:
             plot_folder = _hf.create_directory(
                 Path(self.workfolder, f"{self.max_water}_water_wires")
@@ -792,16 +839,17 @@ class OligoComp:
         root = (
             f"_{self.connected_component_root}" if self.connected_component_root else ""
         )
+        path_name = f'_path_{self.path[0]}-{self.path[1]}' if self.path else ""
 
         for form in self.plot_parameters["formats"]:
             plt.savefig(
-                Path(plot_folder, f'conserved{root}{waters}{occ}_graph{is_backbone}{is_label}.{form}'),
+                Path(plot_folder, f'conserved{root}{waters}{path_name}{occ}_graph{is_backbone}{is_label}.{form}'),
                 format=form,
                 dpi=self.plot_parameters["plot_resolution"],
             )
         if is_label:
             _hf.write_text_file(
-                Path(plot_folder, f'conserved{root}{waters}{occ}_graph_inof.txt'),
+                Path(plot_folder, f'conserved{root}{path_name}{waters}{occ}_graph_inof.txt'),
                 [
                     "Conserved water wire graph of "
                     + str(len(self.graph_coord_objects.keys()))
@@ -814,6 +862,8 @@ class OligoComp:
                         if self.occupancy
                         else ""
                     ),
+                    (f"\nConnected component from root node {root}" if root else ""),
+                    (f"\nPath search between {self.path[0]} and {self.path[1]}" if self.path else ""),
                     "\n",
                     "\nNumber of conserved nodes : "
                     + str(len(self.conserved_nodes)),
@@ -995,6 +1045,10 @@ class OligoComp:
                     plot_folder = _hf.create_directory(
                         Path(self.workfolder, f"{self.max_water}_water_wires_connected_components", self.connected_component_root, segment)
                     )
+                elif self.path:
+                    plot_folder = _hf.create_directory(
+                        Path(self.workfolder, f"{self.max_water}_water_wires_path", f'{self.path[0]}-{self.path[1]}', segment)
+                    )
                 else:
                     plot_folder = _hf.create_directory(
                         Path(self.workfolder, f"{self.max_water}_water_wires", segment)
@@ -1010,9 +1064,11 @@ class OligoComp:
                     if self.occupancy
                     else ""
                 )
+                root = (f"_{self.connected_component_root}" if self.connected_component_root else "")
+                path_name = f'_path_{self.path[0]}-{self.path[1]}' if self.path else ""
                 for form in self.plot_parameters["formats"]:
                     plt.savefig(
-                        Path(plot_folder, f"{segment}{waters}{occ}_difference_graph{is_backbone}{is_label}.{form}"),
+                        Path(plot_folder, f"{segment}{waters}{root}{path_name}{occ}_difference_graph{is_backbone}{is_label}.{form}"),
                         format=form,
                         dpi=self.plot_parameters["plot_resolution"],
                     )
@@ -1181,6 +1237,12 @@ def main():
         action="store_true",
         help="Create a csv file with the angles of all donor-acceptor pairs that are within the set H-bond distance criterion in each frame (default: False).",
     )
+    parser.add_argument(
+        "--path",
+        default=None,
+        nargs=2,
+        help="Search for paths between start and end nodes. Prove parameter in a form of --path start_node end_node",
+    )
 
     args = parser.parse_args()
 
@@ -1205,6 +1267,11 @@ def main():
     else:
         wrap_dcd = True
 
+    path = tuple(args.path) if args.path else None
+
+    if path and args.root:
+        raise ValueError("Connected component and path search can not be executed in the same computation.")
+
     oligo_comp = OligoComp(
         target_folder=output_folder,
         psf_file=args.psf,
@@ -1228,6 +1295,7 @@ def main():
         stop=args.stop,
         include_backbone_sidechain=args.include_backbone,
         connected_component_root=args.root,
+        path=path,
         occupancy=float(args.occupancy),
         dont_save_graph_objects=args.dont_save_graph_objects,
         collect_angles=args.collect_angles
