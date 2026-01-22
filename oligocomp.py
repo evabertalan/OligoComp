@@ -185,6 +185,9 @@ class OligoComp:
                     wba.filter_occupancy(occupancy)
                 wba.filter_all_paths(start_node, goal_node)
 
+            if len(wba.filtered_graph.nodes) == 0:
+                self.logger.warning(f"No H-bond network was found. The graph is empty with the provided criteria.")
+                return
             self.graph_coord_objects[segment].update({"wba": wba})
 
             self.graph = wba.filtered_graph
@@ -273,14 +276,14 @@ class OligoComp:
                 wba.dump_to_file(
                     Path(
                         self.water_graphs_folder,
-                        f"{segment}{root}{path_name}{self.max_water}_water_wires_graph.pickle",
+                        f"{segment}_{root}{path_name}{self.max_water}_water_wires_graph.pickle",
                     )
                 )
 
                 _hf.pickle_write_file(
                     Path(
                         self.helper_files_folder,
-                        f"{segment}{root}{path_name}{self.max_water}_water_nx_graphs.pickle",
+                        f"{segment}_{root}{path_name}{self.max_water}_water_nx_graphs.pickle",
                     ),
                     self.graph,
                 )
@@ -288,14 +291,14 @@ class OligoComp:
                 _hf.json_write_file(
                     Path(
                         self.helper_files_folder,
-                        f"{segment}{root}{path_name}{self.max_water}_water_graph_edge_info.json",
+                        f"{segment}_{root}{path_name}{self.max_water}_water_graph_edge_info.json",
                     ),
                     _hf.edge_info(wba, self.graph.edges),
                 )
 
                 graph_coord_object_loc = Path(
                     self.helper_files_folder,
-                    f"{segment}{root}{path_name}{self.max_water}_water_wires_coord_objects.pickle",
+                    f"{segment}_{root}{path_name}{self.max_water}_water_wires_coord_objects.pickle",
                 )
                 _hf.pickle_write_file(
                     graph_coord_object_loc,
@@ -363,7 +366,6 @@ class OligoComp:
             self.logger.info(
                 "H-bond occupancy is set to: " + str(occupancy * 100) + "%"
             )
-        self.occupancy = occupancy
         nodes = []
         edges = []
         self.avg_water_per_conserved_edges = None
@@ -440,6 +442,8 @@ class OligoComp:
         inter_monomer=False
     ):
         for segment in self.segments:
+            if "wba" not in self.graph_coord_objects[segment]:
+                return
 
             wba = self.graph_coord_objects[segment]["wba"]
             if occupancy:
@@ -715,7 +719,22 @@ class OligoComp:
             + " graph"
             + str(" with labels" if label_nodes else "")
         )
+
         self.get_conserved_graph(conservation_threshold, occupancy)
+
+        index_of_has_graph = None
+        for i, seg in enumerate(self.segments):
+            if 'graph' in self.graph_coord_objects[seg]:
+                index_of_has_graph = i
+                break
+
+        if index_of_has_graph is None:
+            return
+
+
+        if len(self.conserved_nodes) == 0:
+            self.logger.warning(f"No conserved H-bond network was found. The conserved graph is empty with the provided criteria.")
+            return
         self.pca_positions = self._get_node_positions(self.graph_coord_objects[self.segments[0]])
 
         plot_name = "H-bond" if self.graph_type == "hbond" else "water wire"
@@ -858,8 +877,8 @@ class OligoComp:
                     "\nNumber of maximum water molecules allowed in the bridge: "
                     + str(self.max_water),
                     (
-                        "\nMinimum H-bond occupancy: " + str(self.occupancy)
-                        if self.occupancy
+                        "\nMinimum H-bond occupancy: " + str(occupancy)
+                        if occupancy
                         else ""
                     ),
                     (f"\nConnected component from root node {root}" if root else ""),
@@ -894,7 +913,7 @@ class OligoComp:
         )
         for segment, objects in self.graph_coord_objects.items():
             if "graph" in objects.keys():
-                if self.occupancy:
+                if occupancy:
                     wba = objects["wba"]
                     wba.filter_occupancy(occupancy)
                     graph = wba.filtered_graph
@@ -1060,8 +1079,8 @@ class OligoComp:
                     else ""
                 )
                 occ = (
-                    "_min_occupancy_" + str(self.occupancy)
-                    if self.occupancy
+                    "_min_occupancy_" + str(occupancy)
+                    if occupancy
                     else ""
                 )
                 root = (f"_{self.connected_component_root}" if self.connected_component_root else "")
@@ -1358,7 +1377,8 @@ def main():
             start=args.start,
             stop=args.stop,
             include_backbone_sidechain=args.include_backbone,
-            # connected_component_root=args.root,
+            connected_component_root=args.root,
+            path=path,
             occupancy=float(args.occupancy),
             dont_save_graph_objects=args.dont_save_graph_objects,
             inter_monomer=args.inter_monomer
