@@ -183,11 +183,14 @@ class OligoComp:
                 goal_node = f'{segment}-{res_name}-{res_id}'
                 if occupancy:
                     wba.filter_occupancy(occupancy)
-                wba.filter_all_paths(start_node, goal_node)
+                if segment == 'inter_monomer':
+                    wba.filter_inter_monomer_paths(start_node, goal_node)
+                else:
+                    wba.filter_all_paths(start_node, goal_node)
 
             if len(wba.filtered_graph.nodes) == 0:
                 self.logger.warning(f"No H-bond network was found. The graph is empty with the provided criteria.")
-                return
+                continue
             self.graph_coord_objects[segment].update({"wba": wba})
 
             self.graph = wba.filtered_graph

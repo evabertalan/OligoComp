@@ -32,9 +32,11 @@ from collections import OrderedDict as _odict
 from itertools import combinations
 from matplotlib.ticker import MaxNLocator
 import matplotlib
+from itertools import permutations
 
 # matplotlib.use('TKAgg', warn=False)
 import matplotlib.pyplot as _plt
+
 
 _np.int = int
 
@@ -223,15 +225,36 @@ class NetworkAnalysis(BasicFunctionality):
         self.filtered_graph = component
         self._generate_filtered_results_from_filtered_graph()
 
-    def filter_all_paths(
-        self, start, goal, max_len=_np.inf, only_shortest=True, use_filtered=True
-    ):
+    def filter_inter_monomer_paths(self, start, goal):
+        graph = self.filtered_graph
+        if len(graph.nodes()) == 0:
+            raise AssertionError("Graph is empty. Nothing to filter!")
+
+        shortest_graph = _nx.Graph()
+        for seg_pairs in permutations(set([n.split('-')[0] for n in graph.nodes]), 2):
+            start_node = f"{seg_pairs[0]}-{'-'.join(start.split('-')[1:])}"
+            end_node = f"{seg_pairs[1]}-{'-'.join(goal.split('-')[1:])}"
+
+            if start_node in graph.nodes() and end_node in graph.nodes():
+                for c in _nx.connected_components(graph):
+                    component = graph.subgraph(c).copy()
+                    if start_node in component.nodes() and end_node in component.nodes():
+                        paths = _nx.all_shortest_paths(component, start_node, end_node)
+                        for path in paths:
+                            shortest_graph.add_edges_from(_hf.pairwise(path))
+
+        self.filtered_graph = shortest_graph
+        self.applied_filters["shortest_paths"] = (start_node, end_node)
+        self._generate_filtered_results_from_filtered_graph()
+
+    def filter_all_paths(self, start, goal, max_len=_np.inf, only_shortest=True, use_filtered=True):
         if use_filtered:
             graph = self.filtered_graph
         else:
             graph = self.initial_graph
         if len(graph.nodes()) == 0:
-            raise AssertionError("nothing to filter!")
+            raise AssertionError("Graph is empty. Nothing to filter!")
+
         if start not in graph.nodes():
             print(f"WARNING: path search in not possible. The start node is not in the graph in {start.split('-')[0]}")
             self.filtered_graph = _nx.Graph()
