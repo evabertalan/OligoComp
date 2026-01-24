@@ -238,13 +238,13 @@ class OligoComp:
 
             waters = f"_max_{self.max_water}_water_bridges"
             df.to_csv(
-                Path(plot_folder, f"{segment}{waters}{root}{path_name}_water_occupancy_all_edge_info.txt"),
+                Path(plot_folder, f"{segment}{root}{path_name}{waters}_water_occupancy_all_edge_info.txt"),
                 sep="\t",
                 index=False,
             )
             if occupancy:
                 df[df['occupancy'] >= occupancy].to_csv(
-                    Path(plot_folder, f"{segment}{waters}{root}{path_name}_water_{occupancy}_occupancy_edge_info.txt"),
+                    Path(plot_folder, f"{segment}{root}{path_name}{waters}_water_{occupancy}_occupancy_edge_info.txt"),
                     sep="\t",
                     index=False,
                 )
@@ -1263,7 +1263,7 @@ def main():
         "--path",
         default=None,
         nargs=2,
-        help="Search for paths between start and end nodes. Prove parameter in a form of --path start_node end_node",
+        help="Search for paths between start and end nodes. Prove parameter in a form of --path start_node end_node.  Node name has to be given in a form of resname-resid e.g: ASP-213",
     )
 
     args = parser.parse_args()
@@ -1290,7 +1290,6 @@ def main():
         wrap_dcd = True
 
     path = tuple(args.path) if args.path else None
-
     if path and args.root:
         raise ValueError("Connected component and path search can not be executed in the same computation.")
 

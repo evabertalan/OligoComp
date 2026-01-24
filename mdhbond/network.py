@@ -253,7 +253,8 @@ class NetworkAnalysis(BasicFunctionality):
         else:
             graph = self.initial_graph
         if len(graph.nodes()) == 0:
-            raise AssertionError("Graph is empty. Nothing to filter!")
+            print("Graph is empty. Nothing to filter!")
+            self.filtered_graph = _nx.Graph()
 
         if start not in graph.nodes():
             print(f"WARNING: path search in not possible. The start node is not in the graph in {start.split('-')[0]}")
