@@ -445,7 +445,7 @@ class OligoComp:
         ylabel="Membrane normal (Å)",
         occupancy=None,
         inter_monomer=False,
-        res_id_label_shift={},
+        res_id_label_shift=0,
     ):
         for segment in self.segments:
             if "wba" not in self.graph_coord_objects[segment]:
@@ -579,11 +579,7 @@ class OligoComp:
                     if n in node_pca_pos.keys():
                         values = node_pca_pos[n]
                         seg_id, res_name, res_id = _hf.get_node_name_pats(n,  with_segid=self.inter_monomer)
-                        res_id_offset = (
-                            int(res_id_label_shift[seg_id])
-                            if seg_id in res_id_label_shift.keys()
-                            else 0
-                        )
+                        res_id_offset = res_id_label_shift
                         if res_name in _hf.water_types:
                             pass  # temporary turn off water labels
                             # ax.annotate(
@@ -725,7 +721,7 @@ class OligoComp:
         ylabel="Membrane normal (Å)",
         conservation_threshold=0.9,
         occupancy=None,
-        res_id_label_shift={},
+        res_id_label_shift=0,
     ):
         self.logger.info(
             "Plotting conserved "
@@ -809,11 +805,7 @@ class OligoComp:
                 self.logger.info(f"Shifting resid labels with {res_id_label_shift}")
             for node in self.conserved_nodes:
                 seg_id, res_name, res_id = _hf.get_node_name_pats(node, with_segid=self.inter_monomer)
-                res_id_offset = (
-                    int(res_id_label_shift[seg_id])
-                    if seg_id in res_id_label_shift.keys()
-                    else 0
-                )
+                res_id_offset = res_id_label_shift
                 if node in self.pca_positions.keys():
                     if (
                         res_name not in _hf.water_types
@@ -925,7 +917,7 @@ class OligoComp:
         ylabel="Membrane normal (Å)",
         conservation_threshold=0.9,
         occupancy=None,
-        res_id_label_shift={},
+        res_id_label_shift=0,
     ):
         self.logger.info(
             "Plotting difference "
@@ -1049,11 +1041,7 @@ class OligoComp:
                         if n in node_pca_pos.keys():
                             values = node_pca_pos[n]
                             seg_id, res_name, res_id = _hf.get_node_name_pats(n)
-                            res_id_offset = (
-                                int(res_id_label_shift[seg_id])
-                                if seg_id in res_id_label_shift.keys()
-                                else 0
-                            )
+                            res_id_offset = 0
                             if res_name in _hf.water_types:
                                 pass  # ax.annotate(f'W{res_id}', (values[0]+0.2, values[1]-0.25), fontsize=self.plot_parameters['node_label_size'])
                             elif res_name in _hf.amino_d.keys():
@@ -1255,7 +1243,7 @@ def main():
 
     parser.add_argument(
         "--res_id_label_shift",
-        default={},
+        default=0,
         type=json.loads,
         help='Shift residue ID labels by a given offset. Please provide a value in a json format with an offset per segment e.g: {"PROA": 12, "PROB": 8}',
     )
@@ -1350,20 +1338,20 @@ def main():
     oligo_comp.plot_graphs(
         label_nodes=True,
         occupancy=float(args.occupancy),
-        res_id_label_shift=dict(args.res_id_label_shift),
+        res_id_label_shift=int(args.res_id_label_shift),
     )
 
     oligo_comp.plot_conserved_graph(
         label_nodes=True,
         conservation_threshold=float(args.conservation_threshold),
         occupancy=float(args.occupancy),
-        res_id_label_shift=dict(args.res_id_label_shift),
+        res_id_label_shift=int(args.res_id_label_shift),
     )
     oligo_comp.plot_differnece_graphs(
         label_nodes=True,
         conservation_threshold=float(args.conservation_threshold),
         occupancy=float(args.occupancy),
-        res_id_label_shift=dict(args.res_id_label_shift),
+        res_id_label_shift=int(args.res_id_label_shift),
     )
 
     if args.no_label_plots:
@@ -1371,7 +1359,7 @@ def main():
             label_nodes=False,
             label_edges=False,
             occupancy=float(args.occupancy),
-            res_id_label_shift=dict(args.res_id_label_shift),
+            res_id_label_shift=int(args.res_id_label_shift),
         )
 
         oligo_comp.plot_conserved_graph(
@@ -1379,7 +1367,7 @@ def main():
             label_edges=False,
             conservation_threshold=float(args.conservation_threshold),
             occupancy=float(args.occupancy),
-            res_id_label_shift=dict(args.res_id_label_shift),
+            res_id_label_shift=int(args.res_id_label_shift),
         )
 
         oligo_comp.plot_differnece_graphs(
@@ -1387,7 +1375,7 @@ def main():
             label_edges=False,
             conservation_threshold=float(args.conservation_threshold),
             occupancy=float(args.occupancy),
-            res_id_label_shift=dict(args.res_id_label_shift),
+            res_id_label_shift=int(args.res_id_label_shift),
         )
 
     if args.inter_monomer:
@@ -1424,13 +1412,13 @@ def main():
             label_nodes=True,
             occupancy=float(args.occupancy),
             inter_monomer=False,
-            res_id_label_shift=dict(args.res_id_label_shift),
+            res_id_label_shift=int(args.res_id_label_shift),
         )
         oligo_comp_inter.plot_graphs(
             label_nodes=True,
             occupancy=float(args.occupancy),
             inter_monomer=True,
-            res_id_label_shift=dict(args.res_id_label_shift),
+            res_id_label_shift=int(args.res_id_label_shift),
         )
 
         if args.no_label_plots:
@@ -1438,13 +1426,13 @@ def main():
                 label_nodes=False,
                 occupancy=float(args.occupancy),
                 inter_monomer=False,
-                res_id_label_shift=dict(args.res_id_label_shift),
+                res_id_label_shift=int(args.res_id_label_shift),
             )
             oligo_comp_inter.plot_graphs(
                 label_nodes=False,
                 occupancy=float(args.occupancy),
                 inter_monomer=True,
-                res_id_label_shift=dict(args.res_id_label_shift),
+                res_id_label_shift=int(args.res_id_label_shift),
             )
 
 
