@@ -199,8 +199,8 @@ c1, c2 = st.columns(2)
 with c1:
     venv_path = st.text_input(
         "Virtual environment activation script",
-        value="./oligo_comp/bin/activate",
-        help="Example: ~/.venvs/oligo_comp/bin/activate",
+        value="./OligoComp/oligo_comp_env/bin/activate",
+        help="Example: ~/.venvs/oligo_comp_env/bin/activate",
     ).strip()
 
 with c2:
