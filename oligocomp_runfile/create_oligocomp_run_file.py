@@ -240,6 +240,13 @@ dcd = st.text_input(
     ),
 ).strip()
 
+
+wrap_dcd = st.selectbox(
+    "PBC wrapping",
+    [True, False],
+    help="Passed to `--wrap_dcd true|false`.",
+)
+
 if output_folder:
     st.caption(f"Log file: `{output_folder}/oligocomp_{run_name}.log`")
 
@@ -249,8 +256,65 @@ if not output_folder or not psf or not dcd:
     )
     st.stop()
 
+
+
 st.divider()
+
 st.header("Shared parameters")
+
+st.subheader("Trajectory reading steps")
+
+c1, c2, c3 = st.columns(3)
+start = c1.number_input(
+    "Start frame",
+    value=None,
+    step=1,
+    help="Blank = first frame. Negative values are accepted by the underlying trajectory reader.",
+)
+stop = c2.number_input(
+    "Stop frame",
+    value=None,
+    step=1,
+    help="Blank = last frame.",
+)
+step = c3.number_input(
+    "Step",
+    value=1,
+    min_value=1,
+    step=1,
+)
+
+st.subheader("H-bond network criteria")
+
+
+c1, c2, c3, c4 = st.columns(4)
+distance = c1.number_input(
+    "H-bond distance cutoff (Å)",
+    value=3.5,
+    min_value=0.1,
+    max_value=15.0,
+    step=0.1,
+)
+cut_angle = c2.number_input(
+    "H-bond angle cutoff (°)",
+    value=60.0,
+    min_value=0.0,
+    max_value=180.0,
+    step=1.0,
+)
+occupancy = c3.number_input(
+    "Minimum H-bond occupancy",
+    value=0.1,
+    min_value=0.0,
+    max_value=1.0,
+    step=0.01,
+)
+max_water = c4.number_input(
+    "Maximum number of waters allowed in the bridge",
+    value=3,
+    min_value=0,
+    step=1,
+)
 
 c1, c2 = st.columns(2)
 with c1:
@@ -268,6 +332,50 @@ with c2:
 
 donors = python_list_string(donor_text)
 acceptors = python_list_string(acceptor_text)
+
+
+
+conservation_threshold = st.number_input(
+    "Conservation threshold",
+    value=0.9,
+    min_value=0.0,
+    max_value=1.0,
+    step=0.05,
+    help="Fraction of monomers/segments in which a node or edge must occur to be considered conserved.",
+)
+
+selection = st.text_input(
+    "Selection to perform the analysis on, in a form of an MDAnalysis selection sting. ",
+    "protein",
+    help="Default is protein. Documentation of the selection language: `https://userguide.mdanalysis.org/stable/selections.html`",
+)
+
+res_id_label_shift = st.number_input(
+    "Residue ID label shift",
+    value=0,
+    step=1,
+    help=(
+        "The current CLI later casts this argument to int, so this generator "
+        "uses one integer offset for the calculation."
+    ),
+)
+
+segment_input = st.text_input(
+    "Segment names (optional)",
+    value="",
+    help="Comma-separated topology segment IDs. Blank = use all protein segments.",
+)
+segment_names = [x.strip() for x in segment_input.split(",") if x.strip()]
+
+no_label_plots = st.checkbox(
+    "Generate additional plots without labels",
+    value=True,
+)
+dont_save_graph_objects = st.checkbox(
+    "Don't save large graph/metadata objects",
+    value=True,
+)
+
 
 with st.expander("Adjust graph plot visualization", expanded=False):
     p1, p2 = st.columns(2)
@@ -315,11 +423,11 @@ plot_parameters = {
     "show_chain_label": show_chain_label,
 }
 
-st.info(
-    "Current OligoComp note: `--inter_monomer` cannot be switched off through the CLI "
-    "because the argument is defined with `action='store_true'` and `default=True`. "
-    "Therefore this generator does not add a misleading on/off control for it."
-)
+# st.info(
+#     "Current OligoComp note: `--inter_monomer` cannot be switched off through the CLI "
+#     "because the argument is defined with `action='store_true'` and `default=True`. "
+#     "Therefore this generator does not add a misleading on/off control for it."
+# )
 
 st.divider()
 st.header("OligoComp calculations")
@@ -417,88 +525,8 @@ for i, item in enumerate(st.session_state.oligocomp_calculations):
                 if start_node and goal_node and start_node == goal_node:
                     st.error("Start and goal nodes must be different.")
 
-            st.subheader("Trajectory and graph parameters")
 
-            c1, c2, c3 = st.columns(3)
-            start = c1.number_input(
-                "Start frame",
-                value=None,
-                step=1,
-                key=f"start_{uid}",
-                help="Blank = first frame. Negative values are accepted by the underlying trajectory reader.",
-            )
-            stop = c2.number_input(
-                "Stop frame",
-                value=None,
-                step=1,
-                key=f"stop_{uid}",
-                help="Blank = last frame.",
-            )
-            step = c3.number_input(
-                "Step",
-                value=1,
-                min_value=1,
-                step=1,
-                key=f"step_{uid}",
-            )
 
-            c1, c2, c3, c4 = st.columns(4)
-            distance = c1.number_input(
-                "H-bond distance cutoff (Å)",
-                value=3.5,
-                min_value=0.1,
-                max_value=15.0,
-                step=0.1,
-                key=f"distance_{uid}",
-            )
-            cut_angle = c2.number_input(
-                "H-bond angle cutoff (°)",
-                value=60.0,
-                min_value=0.0,
-                max_value=180.0,
-                step=1.0,
-                key=f"angle_{uid}",
-            )
-            occupancy = c3.number_input(
-                "Minimum occupancy",
-                value=0.1,
-                min_value=0.0,
-                max_value=1.0,
-                step=0.01,
-                key=f"occupancy_{uid}",
-            )
-            max_water = c4.number_input(
-                "Maximum waters",
-                value=3,
-                min_value=0,
-                step=1,
-                key=f"maxwater_{uid}",
-            )
-
-            conservation_threshold = st.number_input(
-                "Conservation threshold",
-                value=0.9,
-                min_value=0.0,
-                max_value=1.0,
-                step=0.05,
-                key=f"conservation_{uid}",
-                help="Fraction of monomers/segments in which a node or edge must occur to be considered conserved.",
-            )
-
-            selection = st.text_input(
-                "MDAnalysis selection",
-                value="protein",
-                key=f"selection_{uid}",
-                help="Example: `protein or resname LYR or resname HSE`.",
-            )
-
-            segment_input = st.text_input(
-                "Segment names (optional)",
-                value="",
-                key=f"segments_{uid}",
-                help="Comma-separated topology segment IDs. Blank = use all protein segments.",
-            )
-            segment_names = [x.strip() for x in segment_input.split(",") if x.strip()]
 
             c1, c2, c3 = st.columns(3)
             residuewise = c1.radio(
@@ -508,53 +536,32 @@ for i, item in enumerate(st.session_state.oligocomp_calculations):
                 key=f"resolution_{uid}",
             ) == "Residuewise"
 
-            wrap_dcd = c2.selectbox(
-                "PBC wrapping",
-                [True, False],
-                key=f"wrap_{uid}",
-                help="Passed to `--wrap_dcd true|false`.",
-            )
 
-            res_id_label_shift = c3.number_input(
-                "Residue ID label shift",
-                value=0,
-                step=1,
-                key=f"shift_{uid}",
-                help=(
-                    "The current CLI later casts this argument to int, so this generator "
-                    "uses one integer offset for the calculation."
-                ),
-            )
+
 
             include_backbone = st.checkbox(
                 "Include backbone ↔ side-chain interactions",
+                key=f"shift_{uid}",
                 value=False,
-                key=f"backbone_{uid}",
             )
-            no_label_plots = st.checkbox(
-                "Generate additional plots without labels",
-                value=True,
-                key=f"nolabel_{uid}",
-            )
-            dont_save_graph_objects = st.checkbox(
-                "Don't save large graph/metadata objects",
-                value=True,
-                key=f"dontsave_{uid}",
-            )
-            collect_angles = st.checkbox(
-                "Collect H-bond angles",
-                value=False,
-                key=f"angles_{uid}",
-            )
-            run_in_background = st.checkbox(
-                "Run this calculation in the background",
-                value=False,
-                key=f"background_{uid}",
-                help=(
-                    "Background calculations run in parallel. Leave this off if calculations "
-                    "are large or you want to limit memory/CPU usage."
-                ),
-            )
+
+
+            collect_angles = False
+            # st.checkbox(
+            #     "Collect H-bond angles",
+            #     value=False,
+            #     key=f"angles_{uid}",
+            # )
+            run_in_background = True
+            # st.checkbox(
+            #     "Run this calculation in the background",
+            #     value=False,
+            #     key=f"background_{uid}",
+            #     help=(
+            #         "Background calculations run in parallel. Leave this off if calculations "
+            #         "are large or you want to limit memory/CPU usage."
+            #     ),
+            # )
 
             calculations.append(
                 {
