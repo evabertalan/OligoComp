@@ -363,7 +363,7 @@ res_id_label_shift = st.number_input(
 segment_input = st.text_input(
     "Segment names (optional)",
     value="",
-    help="Comma-separated topology segment IDs. Blank = use all protein segments.",
+    help="Names of the segments as given in the topology separated by a comma. These are the different segments or chains between the conserved and difference graphs will be calculated. If non is given, all protein segments will be used.",
 )
 segment_names = [x.strip() for x in segment_input.split(",") if x.strip()]
 
@@ -530,7 +530,7 @@ for i, item in enumerate(st.session_state.oligocomp_calculations):
 
             c1, c2, c3 = st.columns(3)
             residuewise = c1.radio(
-                "Graph resolution",
+                "Graph computation mode",
                 ["Residuewise", "Atomwise"],
                 horizontal=True,
                 key=f"resolution_{uid}",
